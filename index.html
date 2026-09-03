@@ -50,7 +50,13 @@
 <script>
 // Tile archive. Same-origin file in this repo by default; swap to a full
 // 1 m archive elsewhere by changing this one line.
-const PMTILES_URL = new URL("maui_dtm_z14.pmtiles", location.href).href;
+//
+// The ".png" suffix is deliberate and load-bearing: GitHub Pages gzip-encodes
+// application/octet-stream and then serves HTTP Range over the COMPRESSED
+// bytes, which corrupts every PMTiles offset (a mid-file range fails to
+// decode outright). Files served as image/* are passed through uncompressed,
+// so ranges address real bytes. The file is an ordinary PMTiles archive.
+const PMTILES_URL = new URL("maui_dtm_z14.pmtiles.png", location.href).href;
 const MAX_Z = 14;                 // highest zoom present in that archive
 
 const protocol = new pmtiles.Protocol();

@@ -61,3 +61,12 @@ project's research notes.
 Prior: [Copernicus GLO-30](https://doi.org/10.5270/ESA-c5d3d65)
 (© DLR/ESA). Imagery: Maxar Vivid, USDA NAIP. Validation: NASA/NSIDC
 ICESat-2 ATL03/ATL08 via [SlideRule](https://slideruleearth.io).
+
+## Why the tile archive ends in `.png`
+
+`maui_dtm_z14.pmtiles.png` is an ordinary PMTiles archive, not an image. GitHub
+Pages gzip-encodes `application/octet-stream` and then serves HTTP `Range`
+requests over the *compressed* representation, so every PMTiles byte offset
+lands in the wrong place and mid-file reads fail to decode. Files served as
+`image/*` are passed through uncompressed, so ranges address real bytes. Rename
+it back to `.pmtiles` for any other host.
