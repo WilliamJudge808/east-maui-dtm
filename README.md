@@ -81,7 +81,16 @@ measured.
 |---|---|---:|---|
 | `maui_surface_z15.pmtiles.png` | z8–15 | 102 MB | lidar + model, merged |
 | `maui_prior_z12.pmtiles.png` | z8–12 | 10 MB | Copernicus GLO-30, raw |
-| `lidar_coverage.geojson` | — | 4 kB | outline of what was surveyed |
+| `lidar_coverage.geojson` | — | 23 kB | outline of what was surveyed |
+
+The coverage outline is traced from the mosaic's **valid pixels**, not from
+the survey's tile index. NOAA ships tiles that are wholly or mostly nodata
+inside a delivery block, so "the tile exists" is not "the ground was flown" —
+and along the south shore the survey is a topobathy ribbon only a few hundred
+metres wide, which a coarse simplification tolerance bulldozed inland. Tested
+on a 0.01° grid across East Maui against measured pixel coverage: the outline
+now over-claims 7 cells of 514 (all straddling the 50%-coverage threshold)
+and under-claims 3, down from 56 over-claims.
 
 Both archives are Mapbox terrain-RGB (`rio rgbify -b -10000 -i 0.1`) on a
 2.1447 m Web Mercator grid. The surface tiles are **lossless WebP**, not PNG:

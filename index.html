@@ -117,7 +117,8 @@ label.chk input{accent-color:var(--reef);margin:0}
 #read .src.surv{color:var(--reef)}
 
 /* ---- legend ---- */
-#leg{position:absolute;left:14px;bottom:16px;z-index:3;background:var(--panel);
+/* clears the scale bar, which MapLibre pins to the bottom-left corner */
+#leg{position:absolute;left:14px;bottom:40px;z-index:3;background:var(--panel);
   border:1px solid var(--edge);border-radius:var(--r);padding:9px 11px 8px;
   backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);width:296px}
 #ramp{height:8px;border-radius:2px;border:1px solid var(--edge)}
@@ -136,7 +137,7 @@ label.chk input{accent-color:var(--reef);margin:0}
 
 @media(max-width:640px){
   #hud,#leg{width:auto;left:8px;right:8px}
-  #hud{top:8px} #leg{bottom:8px} #read{top:auto;bottom:112px;right:8px}
+  #hud{top:8px} #leg{bottom:34px} #read{top:auto;bottom:132px;right:8px}
 }
 </style>
 </head>
@@ -341,6 +342,7 @@ const map = new maplibregl.Map({
   maxZoom: 16,
   maxBounds: [[-157.35, 20.05], [-155.35, 21.5]],
   hash: true,
+  attributionControl: false,       // re-added below, compact
   // Pages sends max-age=600 on every tile. Without this MapLibre re-requests
   // each one the moment it expires, mid-pan, for bytes that never change.
   refreshExpiredTiles: false,
@@ -366,6 +368,11 @@ const map = new maplibregl.Map({
 });
 map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
 map.addControl(new maplibregl.ScaleControl({ maxWidth: 110, unit: "metric" }));
+// Compact: the Copernicus notices are prescribed verbatim and long enough to
+// span the window, which collided with the legend. Collapsed behind the "i"
+// is how web maps normally carry a required notice, and it is also stated in
+// full in the README.
+map.addControl(new maplibregl.AttributionControl({ compact: true }));
 
 /* Layers are rebuilt rather than retargeted, because a layer's source is
  * fixed at creation. Only the active archive ever has a layer pointing at it,
@@ -443,6 +450,18 @@ function rebuild() {
 
   map.setTerrain(state.d3 ? { source: src, exaggeration: state.exag } : null);
   drawLegend();
+  collapseAttrib();
+}
+
+/* MapLibre renders the compact attribution pre-expanded, and these notices are
+ * long enough to span the window and sit on top of the legend. Collapse it to
+ * the "i" -- the notice is still one click away, and in the README. Repeated
+ * after every rebuild because switching source rewrites the attribution. */
+function collapseAttrib() {
+  for (const el of document.querySelectorAll("details.maplibregl-ctrl-attrib")) {
+    el.open = false;
+    el.classList.remove("maplibregl-compact-show");
+  }
 }
 
 /* ------------------------------------------------------------ coverage --- */
