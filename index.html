@@ -218,12 +218,22 @@ const ARCHIVES = {
     // parent tile, so the lidar simply tops out one level earlier.
     file: "maui_surface_z15.pmtiles.png", maxzoom: 15, mime: "image/webp",
     name: "1 m surface", attrib:
-      "Lidar: NOAA 2022 topobathy &middot; East Maui: modelled, not measured",
+      "Lidar: NOAA 2022 topobathy &middot; East Maui: modelled, not measured "
+      + "&middot; produced using Copernicus WorldDEM-30 &copy; DLR e.V. "
+      + "2010-2014 and &copy; Airbus Defence and Space GmbH 2014-2018 "
+      + "provided under COPERNICUS by the European Union and ESA; "
+      + "all rights reserved",
   },
   prior: {
     file: "maui_prior_z12.pmtiles.png", maxzoom: 12, mime: "image/png",
+    // Art. 6(a) of the Copernicus DEM licence: this layer IS the data, so it
+    // carries the source notice. The surface above is adapted from it, so it
+    // carries the Art. 6(b) "produced using" notice instead. Both are
+    // prescribed verbatim -- they are an obligation, not a courtesy credit.
     name: "Copernicus GLO-30", attrib:
-      "Copernicus GLO-30 &copy; DLR/ESA",
+      "&copy; DLR e.V. 2010-2014 and &copy; Airbus Defence and Space GmbH "
+      + "2014-2018 provided under COPERNICUS by the European Union and ESA; "
+      + "all rights reserved",
   },
 };
 // Framing box, not the data box. Kahoolawe is in the archive and shows up in

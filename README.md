@@ -127,9 +127,28 @@ mid-file reads fail to decode. Files served as `image/*` are passed through
 uncompressed, so ranges address real bytes. Rename to `.pmtiles` for any other
 host.
 
-## Credits
+## Credits and required notices
 
-Lidar: NOAA NOS 2022 Kahoʻolawe/Lānaʻi/Maui/Molokaʻi/Oʻahu topobathymetric DEM.
-Prior: [Copernicus GLO-30](https://doi.org/10.5270/ESA-c5d3d65) (© DLR/ESA).
-Imagery: Maxar Vivid, USDA NAIP. Validation: NASA/NSIDC ICESat-2 ATL03/ATL08
-via [SlideRule](https://slideruleearth.io).
+Lidar: NOAA NOS 2022 Kahoʻolawe/Lānaʻi/Maui/Molokaʻi/Oʻahu topobathymetric DEM
+(US federal, public domain). Imagery used to *train* the model, none of it
+redistributed here: Maxar Vivid 2022 via the State of Hawaiʻi Statewide GIS
+Program, USDA NAIP 2021 via NOAA Digital Coast, Pictometry 2023 via Maui
+County. Validation: NASA/NSIDC ICESat-2 ATL03/ATL08 via
+[SlideRule](https://slideruleearth.io).
+
+The Copernicus DEM notices below are **required verbatim** by Article 6 of the
+[Copernicus DEM licence](https://doi.org/10.5270/ESA-c5d3d65), not offered as
+a courtesy credit. The 1 m surface is an adapted product; the prior layer is
+the data itself.
+
+> produced using Copernicus WorldDEM-30 © DLR e.V. 2010-2014 and © Airbus
+> Defence and Space GmbH 2014-2018 provided under COPERNICUS by the European
+> Union and ESA; all rights reserved
+
+> © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018 provided
+> under COPERNICUS by the European Union and ESA; all rights reserved
+
+Article 6(c) also requires that anyone receiving this data understands that
+neither the licensor nor any other party warrants it. Nothing here is
+warranted, and the East Maui surface in particular is a model's estimate, not
+a survey — see the accuracy and limitation sections above.
