@@ -7,12 +7,39 @@
 <meta name="description" content="Maui's terrain at 1 m: airborne lidar where it was surveyed, a neural reconstruction where it never was. Compare either against the 30 m global DEM both start from.">
 <meta name="color-scheme" content="dark">
 
+<!-- This page is static, stores nothing, and asks for nothing. The only code
+     it does not serve itself is these four files, so they are pinned by
+     content hash: if the CDN ever served different bytes, the browser
+     refuses to run them rather than executing whatever arrived. The CSP
+     above is the second half of that -- it names the only origin allowed to
+     supply script at all, and forbids this page from connecting anywhere
+     except back to itself. -->
+<meta http-equiv="Content-Security-Policy" content="
+  default-src 'none';
+  script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net blob:;
+  style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net;
+  img-src 'self' data: blob:;
+  font-src 'self';
+  connect-src 'self';
+  worker-src blob:;
+  child-src blob:;
+  base-uri 'none';
+  form-action 'none';">
+
 <!-- 5.9.0 is deliberate: the last MapLibre with a UMD build, and the first
      line that carries the `color-relief` layer the elevation view uses. -->
-<script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.9.0/dist/maplibre-gl.js"></script>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.9.0/dist/maplibre-gl.css">
-<script src="https://cdn.jsdelivr.net/npm/pmtiles@4.5.0/dist/pmtiles.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/maplibre-contour@0.1.0/dist/index.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.9.0/dist/maplibre-gl.js"
+        integrity="sha384-81ppUWZZO+pveTPk4qU9cZuScEFULHfuOMHVJHFZ7xVBlWQTG1zsPrVIMGAl1WMb"
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.9.0/dist/maplibre-gl.css"
+      integrity="sha384-gNYNsUmuZqDYiT3gbirWTV5K7rt71RoveS/yXAaU09d4ZUmeDVTD3XoqB6uJAIFR"
+      crossorigin="anonymous" referrerpolicy="no-referrer">
+<script src="https://cdn.jsdelivr.net/npm/pmtiles@4.5.0/dist/pmtiles.js"
+        integrity="sha384-pbKNZbDshUsLnZMIVsn/t+j3xEY9PGfuX5Z22l5rcy/obXz3EwaMx1F5d9sRsJMn"
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdn.jsdelivr.net/npm/maplibre-contour@0.1.0/dist/index.min.js"
+        integrity="sha384-rKd9nNV3F43xwxeA6WNNsPH+cMYQl6SEM+/HDoU/sgeuK+faXwhqXYA0Pwp0COXT"
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
 <style>
 :root{
@@ -186,7 +213,10 @@ const ARCHIVES = {
   surface: {
     // Tiles inside are lossless WebP, ~30% smaller than PNG for identical
     // pixels -- which is what keeps the archive under GitHub's 100 MiB limit.
-    file: "maui_surface_z14.pmtiles.png", maxzoom: 14, mime: "image/webp",
+    // z15 exists over the model's footprint only -- 2.24 m/px, essentially
+    // the native grid. PMTiles is sparse and MapLibre falls back to the
+    // parent tile, so the lidar simply tops out one level earlier.
+    file: "maui_surface_z15.pmtiles.png", maxzoom: 15, mime: "image/webp",
     name: "1 m surface", attrib:
       "Lidar: NOAA 2022 topobathy &middot; East Maui: modelled, not measured",
   },
@@ -210,9 +240,13 @@ const RAMPS = {
            650,"#5c8340", 1100,"#93964a", 1600,"#bb9552", 2100,"#c07f55",
            2600,"#ab6154", 3055,"#e3d9cf"],
 };
+// maplibre-contour picks the largest key <= the tile's zoom, so a missing low
+// entry is not a coarser contour -- it is no contour at all. A tilted view
+// draws its far half from z8-z9 tiles, which is why the top of the screen came
+// up bare until 8 and 9 were added here.
 const CONTOURS = {
-  10:[500,2000], 11:[200,1000], 12:[100,500],
-  13:[50,250], 14:[20,100], 15:[10,50],
+  8:[1000,3000], 9:[500,2000], 10:[250,1000], 11:[100,500],
+  12:[50,250], 13:[25,100], 14:[10,50], 15:[10,50],
 };
 
 /* ------------------------------------------------------------- pmtiles --- */
@@ -292,6 +326,9 @@ const map = new maplibregl.Map({
   bearing: -14,
   maxPitch: 80,
   minZoom: 8.4,
+  // With tileSize 256 the deepest tiles are already in use at screen z14;
+  // past ~16 there is nothing left to show but interpolation.
+  maxZoom: 16,
   maxBounds: [[-157.35, 20.05], [-155.35, 21.5]],
   hash: true,
   // Pages sends max-age=600 on every tile. Without this MapLibre re-requests
@@ -301,7 +338,14 @@ const map = new maplibregl.Map({
     version: 8,
     sources: Object.fromEntries(Object.entries(ARCHIVES).map(([k, c]) => [k, {
       type: "raster-dem", url: "pmtiles://" + c.url, encoding: "mapbox",
-      tileSize: 512, maxzoom: c.maxzoom, attribution: c.attrib,
+      // The tiles really are 512 px. Declaring 256 only changes which zoom
+      // MapLibre reaches for at a given camera -- one level deeper, so the
+      // hillshade is computed from twice as fine a DEM. Measured at the
+      // default view: 1.53x the high-frequency detail for 2.1x the bytes,
+      // with elevations bit-identical (checked against Haleakala and Puu
+      // Kukui). Elevation decoding reads the real image dimensions, so
+      // nothing about the terrain geometry depends on this number.
+      tileSize: 256, maxzoom: c.maxzoom, attribution: c.attrib,
     }])),
     layers: [{ id: "sea", type: "background",
                // Measured, not chosen: this is exactly what a flat 0 m tile
@@ -316,7 +360,7 @@ map.addControl(new maplibregl.ScaleControl({ maxWidth: 110, unit: "metric" }));
 /* Layers are rebuilt rather than retargeted, because a layer's source is
  * fixed at creation. Only the active archive ever has a layer pointing at it,
  * so the inactive one costs no requests. */
-const MINE = ["tint", "shade", "cmin", "cmaj", "cov-line"];
+const MINE = ["tint", "shade", "cmin", "cmaj", "cov-glow", "cov-line"];
 
 function paintRamp(view) {
   const stops = RAMPS[view === "elev" ? "elev" : "relief"];
@@ -368,11 +412,22 @@ function rebuild() {
   }
 
   if (map.getSource("coverage")) {
+    // A 1 px half-transparent dash disappeared into the hillshade. A soft
+    // wide glow under a crisp dash reads at every zoom without hiding relief.
+    const vis = { visibility: state.cov ? "visible" : "none" };
     map.addLayer({
-      id: "cov-line", type: "line", source: "coverage",
-      layout: { visibility: state.cov ? "visible" : "none" },
-      paint: { "line-color": "#5fc0a8", "line-width": 1,
-               "line-opacity": 0.5, "line-dasharray": [4, 3] },
+      id: "cov-glow", type: "line", source: "coverage", layout: vis,
+      paint: { "line-color": "#5fc0a8", "line-blur": 3,
+               "line-opacity": 0.3,
+               "line-width": ["interpolate", ["linear"], ["zoom"],
+                              9, 5, 13, 10] },
+    });
+    map.addLayer({
+      id: "cov-line", type: "line", source: "coverage", layout: vis,
+      paint: { "line-color": "#8af0d4", "line-opacity": 0.95,
+               "line-dasharray": [3, 2],
+               "line-width": ["interpolate", ["linear"], ["zoom"],
+                              9, 1.5, 13, 2.4] },
     });
   }
 
@@ -472,8 +527,10 @@ $("t3d").addEventListener("change", (e) => {
 });
 $("tcov").addEventListener("change", (e) => {
   state.cov = e.target.checked;
-  if (map.getLayer("cov-line")) {
-    map.setLayoutProperty("cov-line", "visibility", state.cov ? "visible" : "none");
+  for (const id of ["cov-glow", "cov-line"]) {
+    if (map.getLayer(id)) {
+      map.setLayoutProperty(id, "visibility", state.cov ? "visible" : "none");
+    }
   }
 });
 $("head").addEventListener("click", () => {
@@ -502,7 +559,9 @@ map.on("mousemove", (e) => {
     if (!ll) return;
     const z = map.queryTerrainElevation(ll);
     if (z == null) { $("read").classList.remove("on"); return; }
-    $("rm").textContent = Math.round(z).toLocaleString();
+    // queryTerrainElevation returns the *exaggerated* height, so at 1.6x this
+    // was reporting Haleakala as 4,888 m. Divide it back out.
+    $("rm").textContent = Math.round(z / state.exag).toLocaleString();
     const s = surveyed(ll.lng, ll.lat);
     const el = $("rs");
     el.className = "src " + (state.src === "prior" ? "" : s ? "surv" : "pred");

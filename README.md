@@ -79,18 +79,39 @@ measured.
 
 | File | Zooms | Size | Contents |
 |---|---|---:|---|
-| `maui_surface_z14.pmtiles.png` | z8–14 | 69 MB | lidar + model, merged |
+| `maui_surface_z15.pmtiles.png` | z8–15 | 102 MB | lidar + model, merged |
 | `maui_prior_z12.pmtiles.png` | z8–12 | 10 MB | Copernicus GLO-30, raw |
 | `lidar_coverage.geojson` | — | 4 kB | outline of what was surveyed |
 
 Both archives are Mapbox terrain-RGB (`rio rgbify -b -10000 -i 0.1`) on a
-2.1447 m Web Mercator grid — 2× oversampled for z14's 4.47 m/px.
+2.1447 m Web Mercator grid. The surface tiles are **lossless WebP**, not PNG:
+identical pixels, 112 MB → 70 MB at z14.
 
-The surface tiles are **lossless WebP**, not PNG: identical pixels, 112 MB →
-69 MB, which is what puts a whole-island archive under GitHub's 100 MiB
-per-file limit. The opening view costs about 1.6 MB over 34 range requests;
-only one of the two archives is ever rendered at a time, so the toggle does
-not double tile traffic.
+**The pyramid is deliberately lopsided.** z15 (2.24 m/px — essentially the
+native grid) exists *only* over the model's footprint, and z14 was dropped
+*outside* it. The reconstruction is what this map exists to show, so that is
+where the bytes go; the lidar tops out a level earlier. PMTiles is sparse and
+MapLibre falls back to the parent tile, so West Maui simply gets less detail
+at high zoom rather than holes — verified at screen z14, 0% blank frame.
+
+That trade is what keeps the archive at 97.4 MiB, under GitHub's 100 MiB
+per-file cap, with z15 included at all.
+
+The source is declared `tileSize: 256` although the tiles really are 512 px.
+That only changes which zoom MapLibre reaches for at a given camera — one
+level deeper, so the hillshade is computed from twice as fine a DEM. Measured:
+**1.53× the high-frequency detail** for 2.1× the bytes, elevations unchanged.
+The opening view costs about 3.8 MB over 51 range requests. Only one of the
+two archives is ever rendered, so the surface/prior toggle does not double
+tile traffic.
+
+## Page security
+
+The page is static, sets no cookies, stores nothing, and has no analytics —
+it makes no third-party request except for its four library files. Those are
+pinned by **Subresource Integrity** hash, so a compromised CDN cannot swap the
+code, and a **Content-Security-Policy** names `cdn.jsdelivr.net` as the only
+permitted script origin and restricts `connect-src` to this origin alone.
 
 Ocean is encoded as elevation 0, never as nodata. rio-rgbify casts NaN
 straight to `uint8`, which decodes to −10000 m; the previous version of this
