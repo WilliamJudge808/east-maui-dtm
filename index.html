@@ -3,122 +3,533 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>East Maui at One Metre</title>
-<meta name="description" content="Predicted 1 m bare-earth terrain model of East Maui, the part of the island with no lidar coverage.">
-<script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css">
-<script src="https://cdn.jsdelivr.net/npm/pmtiles@3.2.0/dist/pmtiles.js"></script>
+<title>Maui at One Metre</title>
+<meta name="description" content="Maui's terrain at 1 m: airborne lidar where it was surveyed, a neural reconstruction where it never was. Compare either against the 30 m global DEM both start from.">
+<meta name="color-scheme" content="dark">
+
+<!-- 5.9.0 is deliberate: the last MapLibre with a UMD build, and the first
+     line that carries the `color-relief` layer the elevation view uses. -->
+<script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.9.0/dist/maplibre-gl.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.9.0/dist/maplibre-gl.css">
+<script src="https://cdn.jsdelivr.net/npm/pmtiles@4.5.0/dist/pmtiles.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/maplibre-contour@0.1.0/dist/index.min.js"></script>
+
 <style>
-  :root{
-    --ink:#e9e7e1; --dim:#a09d95; --panel:rgba(16,20,24,.93);
-    --edge:#2c3038; --reef:#5fb8a6;
-  }
-  html,body{margin:0;height:100%;background:#0e1418;
-    font:15px/1.55 "Helvetica Neue",Helvetica,Arial,sans-serif;color:var(--ink)}
-  #map{position:absolute;inset:0}
-  #panel{position:absolute;top:14px;left:14px;z-index:2;background:var(--panel);
-    padding:14px 16px 12px;border:1px solid var(--edge);border-radius:5px;
-    max-width:310px;backdrop-filter:blur(4px)}
-  h1{font-size:16px;margin:0 0 2px;letter-spacing:-.01em}
-  .sub{font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;
-    color:var(--reef);margin:0 0 9px}
-  p{margin:0 0 10px;color:var(--dim);font-size:12.5px}
-  .ctl{display:flex;align-items:center;gap:9px;margin-top:9px;font-size:12.5px}
-  .ctl input[type=range]{flex:1;accent-color:var(--reef)}
-  #status{font-size:11.5px;color:var(--dim);margin-top:9px;
-    border-top:1px solid var(--edge);padding-top:8px}
-  #status b{color:var(--ink);font-weight:600}
-  a{color:var(--reef)}
-  @media(max-width:560px){#panel{max-width:none;left:8px;right:8px;top:8px}}
+:root{
+  --ink:#ece7dd; --dim:#939ca2; --faint:#5f686e;
+  --panel:rgba(9,14,18,.88); --edge:rgba(236,231,221,.13);
+  --reef:#5fc0a8; --sun:#d9a441; --sea:#0a1a21;
+  --r:6px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--sea);color:var(--ink);
+  font:14px/1.5 ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased}
+#map{position:absolute;inset:0}
+.maplibregl-ctrl-attrib{font-size:10.5px}
+
+/* ---- panel ---- */
+#hud{position:absolute;top:14px;left:14px;z-index:3;width:296px;
+  background:var(--panel);border:1px solid var(--edge);border-radius:var(--r);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  box-shadow:0 10px 34px rgba(0,0,0,.5)}
+#head{display:flex;align-items:flex-start;gap:10px;padding:13px 14px 11px;
+  cursor:pointer;user-select:none}
+#head h1{font-size:16.5px;margin:0;letter-spacing:-.015em;font-weight:620}
+#head .kicker{font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--reef);margin:0 0 3px}
+#head .chev{margin-left:auto;color:var(--faint);font-size:11px;flex:none;
+  transition:transform .18s;background:none;border:0;cursor:pointer;
+  padding:6px 0 0;font-family:inherit}
+#head .chev:hover{color:var(--ink)}
+#hud.shut .chev{transform:rotate(-90deg)}
+#hud.shut #body{display:none}
+#body{padding:0 14px 12px}
+#body>p{margin:0 0 13px;color:var(--dim);font-size:12.5px}
+
+.grp{margin-bottom:13px}
+.lab{font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--faint);margin-bottom:5px;display:flex;gap:6px;align-items:baseline}
+.lab .hint{margin-left:auto;letter-spacing:0;text-transform:none;font-size:10px}
+.seg{display:flex;background:rgba(255,255,255,.045);border:1px solid var(--edge);
+  border-radius:5px;padding:2px;gap:2px}
+.seg button{flex:1;appearance:none;background:none;border:0;color:var(--dim);
+  font:inherit;font-size:12px;padding:5px 4px;border-radius:3px;cursor:pointer;
+  white-space:nowrap;transition:background .12s,color .12s}
+.seg button:hover{color:var(--ink)}
+.seg button[aria-pressed=true]{background:rgba(95,192,168,.17);color:var(--ink);
+  box-shadow:inset 0 0 0 1px rgba(95,192,168,.34)}
+.seg button:disabled{opacity:.4;cursor:default}
+
+.row{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--dim);
+  margin-top:8px}
+.row input[type=range]{flex:1;accent-color:var(--reef);height:3px}
+.row .val{width:30px;text-align:right;color:var(--ink);
+  font-variant-numeric:tabular-nums}
+label.chk{display:flex;align-items:center;gap:8px;font-size:12.5px;
+  color:var(--dim);cursor:pointer;margin-top:8px}
+label.chk input{accent-color:var(--reef);margin:0}
+
+#foot{border-top:1px solid var(--edge);padding:9px 14px 11px;font-size:11.5px;
+  color:var(--dim)}
+#foot b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
+#foot .err{color:var(--sun)}
+
+/* ---- cursor readout ---- */
+#read{position:absolute;top:14px;right:56px;z-index:3;background:var(--panel);
+  border:1px solid var(--edge);border-radius:var(--r);padding:7px 11px;
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  font-variant-numeric:tabular-nums;min-width:124px;text-align:right;
+  opacity:0;transition:opacity .18s;pointer-events:none}
+#read.on{opacity:1}
+#read .m{font-size:17px;letter-spacing:-.01em}
+#read .m small{font-size:11px;color:var(--dim);margin-left:2px}
+#read .src{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--faint);margin-top:1px}
+#read .src.pred{color:var(--sun)}
+#read .src.surv{color:var(--reef)}
+
+/* ---- legend ---- */
+#leg{position:absolute;left:14px;bottom:16px;z-index:3;background:var(--panel);
+  border:1px solid var(--edge);border-radius:var(--r);padding:9px 11px 8px;
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);width:296px}
+#ramp{height:8px;border-radius:2px;border:1px solid var(--edge)}
+#ticks{display:flex;justify-content:space-between;font-size:9.5px;
+  color:var(--faint);margin-top:3px;font-variant-numeric:tabular-nums}
+#keys{display:flex;flex-wrap:wrap;gap:5px 14px;font-size:11px;
+  color:var(--dim);margin-top:7px;padding-top:7px;
+  border-top:1px solid var(--edge)}
+/* `hidden` alone cannot beat the id rule that sets #ticks to flex. */
+#leg.noramp #ramp,#leg.noramp #ticks{display:none}
+#leg.noramp #keys{margin-top:0;padding-top:0;border-top:0}
+#keys span{display:flex;align-items:center;gap:7px}
+#keys b{color:var(--ink);font-weight:600}
+#keys i{width:17px;height:0;flex:none;display:inline-block;
+  border-top:1px dashed #5fc0a8}
+
+@media(max-width:640px){
+  #hud,#leg{width:auto;left:8px;right:8px}
+  #hud{top:8px} #leg{bottom:8px} #read{top:auto;bottom:112px;right:8px}
+}
 </style>
 </head>
 <body>
 <div id="map"></div>
-<div id="panel">
-  <p class="sub">Predicted terrain &middot; not lidar</p>
-  <h1>East Maui at One Metre</h1>
-  <p>The wettest, steepest quarter of Maui has no lidar. This surface was
-     reconstructed by a neural ensemble reading aerial imagery on top of the
-     Copernicus 30&nbsp;m global DEM.</p>
-  <div class="ctl"><label for="exag">Relief</label>
-    <input type="range" id="exag" min="1" max="3" step="0.1" value="1.5">
-    <span id="exagv">1.5&times;</span></div>
-  <div class="ctl"><input type="checkbox" id="t3d" checked>
-    <label for="t3d">3-D terrain (right-drag to tilt)</label></div>
-  <div id="status">Loading terrain&hellip;</div>
-</div>
-<script>
-// Tile archive. Same-origin file in this repo by default; swap to a full
-// 1 m archive elsewhere by changing this one line.
-//
-// The ".png" suffix is deliberate and load-bearing: GitHub Pages gzip-encodes
-// application/octet-stream and then serves HTTP Range over the COMPRESSED
-// bytes, which corrupts every PMTiles offset (a mid-file range fails to
-// decode outright). Files served as image/* are passed through uncompressed,
-// so ranges address real bytes. The file is an ordinary PMTiles archive.
-const PMTILES_URL = new URL("maui_dtm_z14.pmtiles.png", location.href).href;
-const MAX_Z = 14;                 // highest zoom present in that archive
 
+<div id="hud">
+  <div id="head">
+    <div>
+      <p class="kicker">Lidar &amp; a reconstruction</p>
+      <h1>Maui at One Metre</h1>
+    </div>
+    <button class="chev" id="chev" aria-expanded="true"
+            aria-label="Collapse panel">&#9660;</button>
+  </div>
+  <div id="body">
+    <p>West Maui was flown with airborne lidar. The wet eastern third never
+       was &mdash; that ground is reconstructed by a neural ensemble reading
+       aerial imagery over a 30&nbsp;m global DEM. They are drawn here as one
+       surface, and only one of them was measured.</p>
+
+    <div class="grp">
+      <div class="lab">Surface <span class="hint">space to flip</span></div>
+      <div class="seg" id="src">
+        <button data-v="surface" aria-pressed="true">1 m surface</button>
+        <button data-v="prior" aria-pressed="false">Copernicus 30 m</button>
+      </div>
+    </div>
+
+    <div class="grp">
+      <div class="lab">View</div>
+      <div class="seg" id="view">
+        <button data-v="relief" aria-pressed="true">Relief</button>
+        <button data-v="elev" aria-pressed="false">Elevation</button>
+        <button data-v="contour" aria-pressed="false">Contours</button>
+      </div>
+    </div>
+
+    <div class="row"><span>Relief</span>
+      <input type="range" id="exag" min="1" max="3" step="0.1" value="1.6">
+      <span class="val" id="exagv">1.6&times;</span></div>
+    <label class="chk"><input type="checkbox" id="t3d" checked>
+      3-D terrain <span style="color:var(--faint)">&mdash; right-drag to tilt</span></label>
+    <label class="chk"><input type="checkbox" id="tcov" checked>
+      Show what was surveyed</label>
+  </div>
+  <div id="foot">Loading terrain&hellip;</div>
+</div>
+
+<div id="read">
+  <div class="m"><span id="rm">&mdash;</span><small>m</small></div>
+  <div class="src" id="rs">&nbsp;</div>
+</div>
+
+<div id="leg">
+  <div id="ramp"></div>
+  <div id="ticks"></div>
+  <div id="keys">
+    <span><i></i>lidar&nbsp;survey&nbsp;edge</span>
+    <span>outside&nbsp;it: <b>modelled</b></span>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ------------------------------------------------------------------ data --
+ * Both archives are ordinary PMTiles. The ".png" suffix is load-bearing:
+ * GitHub Pages gzip-encodes application/octet-stream and then applies HTTP
+ * Range to the COMPRESSED stream, so every PMTiles byte offset lands in the
+ * wrong place. Files served as image/* are passed through untouched.
+ */
+const ARCHIVES = {
+  surface: {
+    // Tiles inside are lossless WebP, ~30% smaller than PNG for identical
+    // pixels -- which is what keeps the archive under GitHub's 100 MiB limit.
+    file: "maui_surface_z14.pmtiles.png", maxzoom: 14, mime: "image/webp",
+    name: "1 m surface", attrib:
+      "Lidar: NOAA 2022 topobathy &middot; East Maui: modelled, not measured",
+  },
+  prior: {
+    file: "maui_prior_z12.pmtiles.png", maxzoom: 12, mime: "image/png",
+    name: "Copernicus GLO-30", attrib:
+      "Copernicus GLO-30 &copy; DLR/ESA",
+  },
+};
+// Framing box, not the data box. Kahoolawe is in the archive and shows up in
+// the corner, but including its latitude here pushed fitBounds two zoom levels
+// out and left the island swimming in empty ocean.
+const MAUI = [[-156.70, 20.575], [-155.97, 21.035]];
+
+/* Sea is written as elevation 0, so it is the ramp's first stop rather than a
+ * separate layer. The two views then differ only in this table. */
+const RAMPS = {
+  relief: [0,"#0a1a21", 0.4,"#12313c", 0.8,"#4c5850", 900,"#5f6255",
+           2400,"#6d6a5e", 3100,"#807a6c"],
+  elev:   [0,"#0a1a21", 0.4,"#0e2630", 0.8,"#1b4d3a", 250,"#2f6b3c",
+           650,"#5c8340", 1100,"#93964a", 1600,"#bb9552", 2100,"#c07f55",
+           2600,"#ab6154", 3055,"#e3d9cf"],
+};
+const CONTOURS = {
+  10:[500,2000], 11:[200,1000], 12:[100,500],
+  13:[50,250], 14:[20,100], 15:[10,50],
+};
+
+/* ------------------------------------------------------------- pmtiles --- */
 const protocol = new pmtiles.Protocol();
 maplibregl.addProtocol("pmtiles", protocol.tile);
 
+const readers = {};
+for (const [key, cfg] of Object.entries(ARCHIVES)) {
+  cfg.url = new URL(cfg.file, location.href).href;
+  readers[key] = new pmtiles.PMTiles(cfg.url);
+  protocol.add(readers[key]);          // share one reader (and its cache)
+}
+
+/* maplibre-contour fetches DEM tiles with a plain fetch() that knows nothing
+ * about pmtiles://. Rather than publish a second, unpacked copy of every tile
+ * just for the contour view, route its requests back into the same reader the
+ * map is already using -- same archive, same warm byte ranges, no extra
+ * bytes hosted. The host is unresolvable, so nothing can leak to the network. */
+const DEM_SCHEME = "https://pmtiles.invalid/";
+const nativeFetch = window.fetch.bind(window);
+window.fetch = async (input, init) => {
+  const url = typeof input === "string" ? input : input.url;
+  if (typeof url !== "string" || !url.startsWith(DEM_SCHEME)) {
+    return nativeFetch(input, init);
+  }
+  const [key, z, x, y] = url.slice(DEM_SCHEME.length).split("/");
+  const tile = await readers[key].getZxy(+z, +x, +y);
+  if (tile) {
+    return new Response(tile.data,
+      { status: 200, headers: { "Content-Type": ARCHIVES[key].mime } });
+  }
+  // A 404 here is ordinary -- the archive is island-shaped and the contour
+  // plugin still asks for the ocean around it -- but the plugin reports it as
+  // a map error, which lands in the status line. Hand back a tile that is
+  // flat sea instead: no isoline is drawn below the 10 m threshold anyway.
+  return new Response(await blankDem(),
+    { status: 200, headers: { "Content-Type": "image/png" } });
+};
+
+let blankPromise = null;
+function blankDem() {
+  if (!blankPromise) {
+    const c = document.createElement("canvas");
+    c.width = c.height = 1;
+    const g = c.getContext("2d");
+    g.fillStyle = "rgb(1,134,160)";     // terrain-RGB for exactly 0 m:
+    g.fillRect(0, 0, 1, 1);             // (1*65536 + 134*256 + 160)*0.1 - 10000
+    blankPromise = new Promise((res) => c.toBlob(res, "image/png"));
+  }
+  return blankPromise;
+}
+
+const demSources = {};
+function demSource(key) {
+  if (!demSources[key]) {
+    const d = new mlcontour.DemSource({
+      url: DEM_SCHEME + key + "/{z}/{x}/{y}",
+      encoding: "mapbox",
+      maxzoom: ARCHIVES[key].maxzoom,
+      worker: false,                 // the shim above lives on this thread
+      id: "dem-" + key,
+    });
+    d.setupMaplibre(maplibregl);
+    demSources[key] = d;
+  }
+  return demSources[key];
+}
+
+/* ----------------------------------------------------------------- map --- */
+const state = { src: "surface", view: "relief", exag: 1.6, d3: true, cov: true };
+
 const map = new maplibregl.Map({
   container: "map",
-  center: [-156.10, 20.78],
-  zoom: 10.6,
-  pitch: 55,
-  bearing: -18,
+  bounds: MAUI,
+  fitBoundsOptions: { padding: 12 },
+  pitch: 44,
+  bearing: -14,
   maxPitch: 80,
+  minZoom: 8.4,
+  maxBounds: [[-157.35, 20.05], [-155.35, 21.5]],
   hash: true,
+  // Pages sends max-age=600 on every tile. Without this MapLibre re-requests
+  // each one the moment it expires, mid-pan, for bytes that never change.
+  refreshExpiredTiles: false,
   style: {
     version: 8,
-    sources: {
-      dtm: {
-        type: "raster-dem",
-        url: "pmtiles://" + PMTILES_URL,
-        encoding: "mapbox",        // rio rgbify -b -10000 -i 0.1
-        tileSize: 512,
-        maxzoom: MAX_Z,
-        attribution: "Predicted DTM (not lidar) &middot; prior: Copernicus GLO-30"
-      }
-    },
-    layers: [
-      { id: "sea", type: "background", paint: { "background-color": "#0d1f26" } },
-      { id: "hillshade", type: "hillshade", source: "dtm",
-        paint: {
-          "hillshade-exaggeration": 0.62,
-          "hillshade-shadow-color": "#080b0e",
-          "hillshade-highlight-color": "#f4f1ea",
-          "hillshade-accent-color": "#1b2a32"
-        } }
-    ],
-    terrain: { source: "dtm", exaggeration: 1.5 }
-  }
+    sources: Object.fromEntries(Object.entries(ARCHIVES).map(([k, c]) => [k, {
+      type: "raster-dem", url: "pmtiles://" + c.url, encoding: "mapbox",
+      tileSize: 512, maxzoom: c.maxzoom, attribution: c.attrib,
+    }])),
+    layers: [{ id: "sea", type: "background",
+               // Measured, not chosen: this is exactly what a flat 0 m tile
+               // renders as, so the rectangular edge of the archive is
+               // invisible against the ocean beyond it.
+               paint: { "background-color": "#090f14" } }],
+  },
 });
 map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
-map.addControl(new maplibregl.ScaleControl({ maxWidth: 120, unit: "metric" }));
+map.addControl(new maplibregl.ScaleControl({ maxWidth: 110, unit: "metric" }));
 
-const statusEl = document.getElementById("status");
-map.on("load", () => {
-  statusEl.innerHTML = "Ready &middot; <b>9,546</b> tiles &middot; "
-    + "elevation <b>&minus;26</b> to <b>3,054 m</b>";
-});
-map.on("error", (e) => {
-  statusEl.innerHTML = "<b>Could not load tiles.</b> "
-    + ((e && e.error && e.error.message) ? e.error.message : "Check PMTILES_URL.");
-});
+/* Layers are rebuilt rather than retargeted, because a layer's source is
+ * fixed at creation. Only the active archive ever has a layer pointing at it,
+ * so the inactive one costs no requests. */
+const MINE = ["tint", "shade", "cmin", "cmaj", "cov-line"];
 
-const exag = document.getElementById("exag");
-const exagv = document.getElementById("exagv");
-const t3d = document.getElementById("t3d");
-function applyTerrain() {
-  exagv.textContent = (+exag.value).toFixed(1) + "×";
-  map.setTerrain(t3d.checked
-    ? { source: "dtm", exaggeration: +exag.value }
-    : null);
+function paintRamp(view) {
+  const stops = RAMPS[view === "elev" ? "elev" : "relief"];
+  return ["interpolate", ["linear"], ["elevation"], ...stops];
 }
-exag.addEventListener("input", applyTerrain);
-t3d.addEventListener("change", applyTerrain);
+
+function rebuild() {
+  for (const id of MINE) if (map.getLayer(id)) map.removeLayer(id);
+  if (map.getSource("contours")) map.removeSource("contours");
+
+  const src = state.src;
+
+  map.addLayer({
+    id: "tint", type: "color-relief", source: src,
+    paint: { "color-relief-color": paintRamp(state.view),
+             "color-relief-opacity": 1 },
+  });
+  map.addLayer({
+    id: "shade", type: "hillshade", source: src,
+    paint: {
+      // 0.72 with a near-white highlight blew the sunlit faces out to paper.
+      "hillshade-exaggeration": state.view === "elev" ? 0.42 : 0.55,
+      "hillshade-shadow-color": "#05090d",
+      "hillshade-highlight-color": "#e6dcc6",
+      "hillshade-accent-color": "#14313b",
+    },
+  });
+
+  if (state.view === "contour") {
+    map.addSource("contours", {
+      type: "vector", maxzoom: 15,
+      tiles: [demSource(src).contourProtocolUrl({
+        thresholds: CONTOURS, contourLayer: "c", elevationKey: "ele",
+        levelKey: "level",
+      })],
+    });
+    map.addLayer({
+      id: "cmin", type: "line", source: "contours", "source-layer": "c",
+      filter: ["!=", ["get", "level"], 1],
+      paint: { "line-color": "#efe6d4", "line-width": 0.5,
+               "line-opacity": 0.34 },
+    });
+    map.addLayer({
+      id: "cmaj", type: "line", source: "contours", "source-layer": "c",
+      filter: ["==", ["get", "level"], 1],
+      paint: { "line-color": "#f6eeda", "line-width": 1.05,
+               "line-opacity": 0.62 },
+    });
+  }
+
+  if (map.getSource("coverage")) {
+    map.addLayer({
+      id: "cov-line", type: "line", source: "coverage",
+      layout: { visibility: state.cov ? "visible" : "none" },
+      paint: { "line-color": "#5fc0a8", "line-width": 1,
+               "line-opacity": 0.5, "line-dasharray": [4, 3] },
+    });
+  }
+
+  map.setTerrain(state.d3 ? { source: src, exaggeration: state.exag } : null);
+  drawLegend();
+}
+
+/* ------------------------------------------------------------ coverage --- */
+let coverage = null;                     // rings in lng/lat, for the readout
+fetch("lidar_coverage.geojson")
+  .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+  .then((gj) => {
+    coverage = [];
+    for (const f of gj.features) {
+      const polys = f.geometry.type === "Polygon"
+        ? [f.geometry.coordinates] : f.geometry.coordinates;
+      for (const p of polys) coverage.push(p);
+    }
+    // addSource throws outright if the style has not finished loading, and
+    // this fetch can easily win that race on a warm cache.
+    const attach = () => { map.addSource("coverage", { type: "geojson", data: gj }); rebuild(); };
+    if (map.isStyleLoaded()) attach(); else map.once("load", attach);
+  })
+  .catch(() => { /* outline is optional; the map stands without it */ });
+
+function surveyed(lng, lat) {
+  if (!coverage) return null;
+  for (const rings of coverage) {
+    let inside = false;
+    for (let r = 0; r < rings.length; r++) {
+      let hits = false;
+      const ring = rings[r];
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const [xi, yi] = ring[i], [xj, yj] = ring[j];
+        if ((yi > lat) !== (yj > lat) &&
+            lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) hits = !hits;
+      }
+      if (r === 0) { if (!hits) break; inside = true; }
+      else if (hits) { inside = false; break; }   // hole
+    }
+    if (inside) return true;
+  }
+  return false;
+}
+
+/* -------------------------------------------------------------- legend --- */
+function drawLegend() {
+  // Only the elevation view encodes height as colour, so only it earns a
+  // ramp; in the other views the same bar was a meaningless grey smear.
+  const show = state.view === "elev";
+  ramp.hidden = ticks.hidden = !show;
+  $("leg").classList.toggle("noramp", !show);
+  if (!show) return;
+  const stops = RAMPS.elev;
+  const max = stops[stops.length - 2];
+  const parts = [];
+  for (let i = 0; i < stops.length; i += 2) {
+    parts.push(`${stops[i + 1]} ${((stops[i] / max) * 100).toFixed(2)}%`);
+  }
+  ramp.style.background = `linear-gradient(90deg,${parts.join(",")})`;
+  ticks.innerHTML = [0, 1000, 2000, 3000]
+    .map((v, i) => `<span>${v.toLocaleString()}${i === 3 ? " m" : ""}</span>`)
+    .join("");
+}
+
+/* ----------------------------------------------------------- interface --- */
+const $ = (id) => document.getElementById(id);
+const foot = $("foot"), ramp = $("ramp"), ticks = $("ticks");
+
+function seg(id, key) {
+  $(id).addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (b && !b.disabled) setSeg(id, key, b.dataset.v);
+  });
+}
+function setSeg(id, key, v) {
+  if (state[key] === v) return;
+  state[key] = v;
+  for (const b of $(id).querySelectorAll("button")) {
+    b.setAttribute("aria-pressed", String(b.dataset.v === v));
+  }
+  rebuild();
+  status();
+}
+seg("src", "src");
+seg("view", "view");
+
+$("exag").addEventListener("input", (e) => {
+  state.exag = +e.target.value;
+  $("exagv").textContent = state.exag.toFixed(1) + "×";
+  if (state.d3) map.setTerrain({ source: state.src, exaggeration: state.exag });
+});
+$("t3d").addEventListener("change", (e) => {
+  state.d3 = e.target.checked;
+  map.setTerrain(state.d3 ? { source: state.src, exaggeration: state.exag } : null);
+  if (!state.d3) $("read").classList.remove("on");
+});
+$("tcov").addEventListener("change", (e) => {
+  state.cov = e.target.checked;
+  if (map.getLayer("cov-line")) {
+    map.setLayoutProperty("cov-line", "visibility", state.cov ? "visible" : "none");
+  }
+});
+$("head").addEventListener("click", () => {
+  const shut = $("hud").classList.toggle("shut");
+  const c = $("chev");
+  c.setAttribute("aria-expanded", String(!shut));
+  c.setAttribute("aria-label", (shut ? "Expand" : "Collapse") + " panel");
+});
+addEventListener("keydown", (e) => {
+  if (e.key !== " " || e.target.matches("input,button")) return;
+  e.preventDefault();
+  setSeg("src", "src", state.src === "surface" ? "prior" : "surface");
+});
+
+/* Elevation under the cursor. This is what makes the A/B quantitative: park
+ * the pointer on a ridge, press space, watch the number move. */
+let pending = null, queued = false;
+map.on("mousemove", (e) => {
+  if (!state.d3) return;
+  pending = e.lngLat;
+  if (queued) return;               // one frame's work per frame, not per event
+  queued = true;
+  requestAnimationFrame(() => {
+    queued = false;
+    const ll = pending; pending = null;
+    if (!ll) return;
+    const z = map.queryTerrainElevation(ll);
+    if (z == null) { $("read").classList.remove("on"); return; }
+    $("rm").textContent = Math.round(z).toLocaleString();
+    const s = surveyed(ll.lng, ll.lat);
+    const el = $("rs");
+    el.className = "src " + (state.src === "prior" ? "" : s ? "surv" : "pred");
+    el.textContent = state.src === "prior" ? "global DEM"
+      : s === null ? " " : s ? "surveyed" : "modelled";
+    $("read").classList.add("on");
+  });
+});
+map.on("mouseout", () => $("read").classList.remove("on"));
+
+function status() {
+  const c = ARCHIVES[state.src];
+  // Ground sampling at the archive's top zoom, so the panel never implies
+  // more detail on screen than the tiles actually carry.
+  const mpx = (40075017 * Math.cos(20.8 * Math.PI / 180))
+              / (Math.pow(2, c.maxzoom) * 512);
+  foot.innerHTML = `<b>${c.name}</b> &middot; z${c.maxzoom}, `
+    + `${mpx.toFixed(1)} m/px &middot; `
+    + (state.src === "prior" ? "the model's starting point"
+                             : "lidar + model");
+}
+
+map.on("load", () => { rebuild(); status(); });
+map.on("error", (e) => {
+  const m = (e && e.error && e.error.message) || "unknown";
+  foot.innerHTML = `<span class="err">Tile error.</span> ${m}`;
+});
 </script>
 </body>
 </html>
