@@ -9,9 +9,10 @@ point and also the hazard:
 * **Surveyed** — NOAA 2022 airborne lidar over West Maui, the isthmus, the
   upper mountain and Kahoʻolawe. Measured ground.
 * **Modelled** — East Maui, the wettest and steepest quarter of the island,
-  which has **no lidar at all**. A two-model neural ensemble reads Maxar Vivid
-  and NAIP imagery over the Copernicus GLO-30 global DEM and outputs a 1 m
-  residual correction. It is **not** a survey and must not be used as one.
+  which has **no lidar at all**. A four-model neural ensemble reads Pictometry,
+  Maxar Vivid and NAIP imagery over the Copernicus GLO-30 global DEM and
+  outputs a 1 m residual correction. It is **not** a survey and must not be
+  used as one.
 * **Gap-filled** — 14.3 km² that neither covers. The NOAA survey has a real
   hole in it on Haleakalā's south flank, west of where the model's footprint
   begins; left alone it renders as a sea-level crater in the side of a
@@ -20,6 +21,17 @@ point and also the hazard:
 
 The dashed teal outline on the map is the edge of the lidar survey — including
 around that hole — and the cursor readout says which side of it you are on.
+
+## Versions
+
+**v2 (October 2026), this map.** Retrained on Princeton's A100 cluster:
+- **Ensemble:** four models (two SegFormer mit_b2, two mit_b5), trained 3× longer.
+- **Grid fix:** each tile is predicted at 16 sub-pixel shifts and averaged. This removes a 4 m / 2 m grid the network
+  drew into the September map.
+- **Coastline:** the Maui County 2017 Detailed Coastline, plus 2013 USACE coastal lidar. It replaces Copernicus's coast,
+  which is tens of metres off in places and put false land in coves (e.g. Huelo).
+
+**v1 (September 2026)** is in this repository's history.
 
 ## What you can do with it
 
@@ -41,29 +53,31 @@ switching to that view hosts and downloads no extra data.
 
 Errors are against airborne lidar unless noted.
 
-| Measure | Copernicus prior | This model |
-|---|---:|---:|
-| Median absolute error (held-out chips) | 1.27 m | **0.55 m** |
-| RMSE | 6.40 m | **4.87 m** |
-| NMAD | 1.62 m | **1.07 m** |
-| Spectral effective resolution (wet forest, paired) | 63.4 m | **27.5 m** |
+| Measure | Copernicus prior | v1 (Sept) | **v2 (this map)** |
+|---|---:|---:|---:|
+| Median absolute error (held-out chips) | 1.27 m | 0.55 m | **0.47 m** |
+| RMSE | 6.40 m | 4.87 m | not re-measured |
+| NMAD | 1.62 m | 1.07 m | not re-measured |
+| Spectral effective resolution (wet forest, paired) | 63.4 m | 27.5 m | not re-measured |
 
-**On East Maui itself**, where no lidar exists, the model was checked against
-ICESat-2 satellite laser altimetry (6,901 ATL08 ground-classified segments,
-35 overpasses, 2018–2026): median |error| **1.10 m** vs the prior's 1.52 m, a
-paired improvement of **+0.40 m** [0.27, 0.64], concentrated on steep ground.
+**On East Maui itself**, where no lidar exists, the **v1** model was checked
+against ICESat-2 satellite laser altimetry (6,901 ATL08 ground-classified
+segments, 35 overpasses, 2018–2026): median |error| **1.10 m** vs the prior's
+1.52 m, a paired improvement of **+0.40 m** [0.27, 0.64], concentrated on steep
+ground. **v2 has not been checked against ICESat-2 yet.**
 
 **At the seam.** Lidar and prediction overlap on 7.3% of the tiled grid, and
-lidar always wins there. Across those 88.9 M pixels the model reads **+0.660 m
-high** of the lidar, mean absolute difference 1.843 m — so the join is a
-sub-metre step, invisible at map scale but real.
+lidar always wins there. Across those 88.9 M pixels v2 reads **+0.339 m high**
+of the lidar, mean absolute difference **1.513 m** (v1: +0.660 m, 1.843 m).
+Much of that overlap is ground the models were trained on, so read it as a
+consistency check, not a held-out score.
 
 ### Known limitation
 
-Under closed canopy the model retains a systematic **+0.93 m high bias** (the
+Under closed canopy the v1 model retained a systematic **+0.93 m high bias** (the
 raw prior's canopy ride-up is +4.90 m, so roughly 80% is removed, not all of
-it). Treat texture finer than ~25 m wavelength as plausible rather than
-measured.
+it); not yet re-measured for v2. Treat texture finer than ~25 m wavelength as
+plausible rather than measured.
 
 ## Method notes
 
@@ -81,7 +95,7 @@ measured.
 |---|---|---:|---|
 | `maui_surface_z15.pmtiles.png` | z8–15 | 102 MB | lidar + model, merged |
 | `maui_prior_z12.pmtiles.png` | z8–12 | 10 MB | Copernicus GLO-30, raw |
-| `lidar_coverage.geojson` | — | 23 kB | outline of what was surveyed |
+| `lidar_coverage.geojson` | — | 310 kB | outline of what was surveyed, clipped to the coastline |
 
 The coverage outline is traced from the mosaic's **valid pixels**, not from
 the survey's tile index. NOAA ships tiles that are wholly or mostly nodata
@@ -90,7 +104,9 @@ and along the south shore the survey is a topobathy ribbon only a few hundred
 metres wide, which a coarse simplification tolerance bulldozed inland. Tested
 on a 0.01° grid across East Maui against measured pixel coverage: the outline
 now over-claims 7 cells of 514 (all straddling the 50%-coverage threshold)
-and under-claims 3, down from 56 over-claims.
+and under-claims 3, down from 56 over-claims. Since v2 it is also clipped to
+the Maui County coastline, because 100 m cells drew whole coves inside the
+outline although the survey has no returns from the water.
 
 Both archives are Mapbox terrain-RGB (`rio rgbify -b -10000 -i 0.1`) on a
 2.1447 m Web Mercator grid. The surface tiles are **lossless WebP**, not PNG:
@@ -103,7 +119,7 @@ where the bytes go; the lidar tops out a level earlier. PMTiles is sparse and
 MapLibre falls back to the parent tile, so West Maui simply gets less detail
 at high zoom rather than holes — verified at screen z14, 0% blank frame.
 
-That trade is what keeps the archive at 97.4 MiB, under GitHub's 100 MiB
+That trade is what keeps the archive at 97.6 MiB (v2), under GitHub's 100 MiB
 per-file cap, with z15 included at all.
 
 The source is declared `tileSize: 256` although the tiles really are 512 px.
@@ -139,7 +155,9 @@ host.
 ## Credits and required notices
 
 Lidar: NOAA NOS 2022 Kahoʻolawe/Lānaʻi/Maui/Molokaʻi/Oʻahu topobathymetric DEM
-(US federal, public domain). Imagery used to *train* the model, none of it
+(US federal, public domain). Coastline: County of Maui Detailed Coastline
+(2017, County Enterprise GIS; provided without warranty) and the 2013 USACE
+NCMP topobathy lidar (public domain). Imagery used to *train* the model, none of it
 redistributed here: Maxar Vivid 2022 via the State of Hawaiʻi Statewide GIS
 Program, USDA NAIP 2021 via NOAA Digital Coast, Pictometry 2023 via Maui
 County. Validation: NASA/NSIDC ICESat-2 ATL03/ATL08 via
