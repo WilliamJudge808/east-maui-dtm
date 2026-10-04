@@ -9,7 +9,7 @@ point and also the hazard:
 * **Surveyed** — NOAA 2022 airborne lidar over West Maui, the isthmus, the
   upper mountain and Kahoʻolawe. Measured ground.
 * **Modelled** — East Maui, the wettest and steepest quarter of the island,
-  which has **no lidar at all**. A four-model neural ensemble reads Pictometry,
+  which has **no lidar at all**. A six-model neural ensemble reads Pictometry,
   Maxar Vivid and NAIP imagery over the Copernicus GLO-30 global DEM and
   outputs a 1 m residual correction. It is **not** a survey and must not be
   used as one.
@@ -24,14 +24,18 @@ around that hole — and the cursor readout says which side of it you are on.
 
 ## Versions
 
-**v2 (October 2026), this map.** Retrained on Princeton's A100 cluster:
+**v3 (October 2026), this map.** Six models: v2's four plus two new ones that are told where the
+coastline and the absolute elevation are, and that are trained to put the sea at sea level. On
+East Maui, v3 is checked against ICESat-2 under a rule written down before the check ran; see Accuracy.
+
+**v2 (October 2026), at [/v2/](v2/).** Retrained on Princeton's A100 cluster:
 - **Ensemble:** four models (two SegFormer mit_b2, two mit_b5), trained 3× longer.
 - **Grid fix:** each tile is predicted at 16 sub-pixel shifts and averaged. This removes a 4 m / 2 m grid the network
   drew into the September map.
 - **Coastline:** the Maui County 2017 Detailed Coastline, plus 2013 USACE coastal lidar. It replaces Copernicus's coast,
   which is tens of metres off in places and put false land in coves (e.g. Huelo).
 
-**v1 (September 2026)** is in this repository's history.
+**v1 (September 2026), at [/v1/](v1/).** Also tagged `v1-september` in this repository.
 
 ## What you can do with it
 
@@ -53,22 +57,46 @@ switching to that view hosts and downloads no extra data.
 
 Errors are against airborne lidar unless noted.
 
-| Measure | Copernicus prior | v1 (Sept) | **v2 (this map)** |
-|---|---:|---:|---:|
-| Median absolute error (held-out chips) | 1.27 m | 0.55 m | **0.47 m** |
-| RMSE | 6.40 m | 4.87 m | not re-measured |
-| NMAD | 1.62 m | 1.07 m | not re-measured |
-| Spectral effective resolution (wet forest, paired) | 63.4 m | 27.5 m | not re-measured |
+| Measure | Copernicus prior | v1 (Sept) | v2 | **v3 (this map)** |
+|---|---:|---:|---:|---:|
+| Median absolute error (held-out chips) | 1.27 m | 0.55 m | 0.47 m | **0.46 m** |
+| RMSE | 6.40 m | 4.87 m | not re-measured | not re-measured |
+| NMAD | 1.62 m | 1.07 m | not re-measured | not re-measured |
+| Spectral effective resolution (wet forest, paired) | 63.4 m | 27.5 m | not re-measured | not re-measured |
 
-**On East Maui itself**, where no lidar exists, the **v1** model was checked
-against ICESat-2 satellite laser altimetry (6,901 ATL08 ground-classified
-segments, 35 overpasses, 2018–2026): median |error| **1.10 m** vs the prior's
-1.52 m, a paired improvement of **+0.40 m** [0.27, 0.64], concentrated on steep
-ground. **v2 has not been checked against ICESat-2 yet.**
+**On East Maui itself**, where no lidar exists, every version is checked against
+ICESat-2 satellite laser altimetry. The setup:
+- the same 6,732 ground segments from 35 overpasses (2018–2026), and the same
+  pre-registered protocol as the September check;
+- heights debiased per overpass, with a bootstrap clustered by overpass.
+
+| | Copernicus | v1 | v2 | **v3** |
+|---|---:|---:|---:|---:|
+| Median absolute error | 1.50 m | 1.09 m | 1.08 m | **1.08 m** |
+| 90th-percentile error | 7.48 m | 4.01 m | 3.73 m | **3.68 m** |
+
+v3 is better than Copernicus by **+0.40 m** per segment [0.26, 0.64], and by
++0.67 m on the steepest quarter of the ground. Against v1 the typical point is
+unchanged, but the large errors and steep ground improve: v2 vs v1 is +0.05 m
+[0.03, 0.11] on steep ground.
+
+**Against other bare-earth DEMs, on the same lidar.** FABDEM and GEDTM30 are global products that also
+correct Copernicus toward bare earth. They were scored on the same 1,107 held-out chips, against NOAA
+lidar published after both products. The rule was written down before scoring.
+
+| | Copernicus | FABDEM | GEDTM30 | **this model** |
+|---|---:|---:|---:|---:|
+| Median per-chip error, 1 m | 1.27 m | 1.25 m | 2.22 m | **0.46 m** |
+| Median per-chip error, averaged to 30 m | 1.15 m | 1.13 m | 1.98 m | **0.35 m** |
+
+The model beats FABDEM on 99% of chips, by +1.09 m [1.02, 1.17] per chip. On a rainforest region a
+version of the model never trained on (wet east Molokai), it scores 2.57 m against FABDEM's 4.85 m.
+FathomDEM was not tested.
 
 **At the seam.** Lidar and prediction overlap on 7.3% of the tiled grid, and
-lidar always wins there. Across those 88.9 M pixels v2 reads **+0.339 m high**
-of the lidar, mean absolute difference **1.513 m** (v1: +0.660 m, 1.843 m).
+lidar always wins there. Across those 88.9 M pixels v3 reads **+0.399 m high**
+of the lidar, mean absolute difference **1.515 m** (v2: +0.339 m, 1.513 m;
+v1: +0.660 m, 1.843 m).
 Much of that overlap is ground the models were trained on, so read it as a
 consistency check, not a held-out score.
 
@@ -119,7 +147,7 @@ where the bytes go; the lidar tops out a level earlier. PMTiles is sparse and
 MapLibre falls back to the parent tile, so West Maui simply gets less detail
 at high zoom rather than holes — verified at screen z14, 0% blank frame.
 
-That trade is what keeps the archive at 97.6 MiB (v2), under GitHub's 100 MiB
+That trade is what keeps the archive at 97.6 MiB (v3), under GitHub's 100 MiB
 per-file cap, with z15 included at all.
 
 The source is declared `tileSize: 256` although the tiles really are 512 px.
