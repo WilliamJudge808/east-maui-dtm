@@ -3,6 +3,8 @@
 A 1 m bare-earth terrain model of Maui, published as an interactive 3-D map:
 **https://williamjudge808.github.io/east-maui-dtm/**
 
+Model, training and evaluation code: **https://github.com/WilliamJudge808/canopy-to-ground**
+
 Two very different things are shown as one seamless surface, which is the
 point and also the hazard:
 
