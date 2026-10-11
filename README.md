@@ -169,11 +169,13 @@ are pinned by **Subresource Integrity** hash, so a compromised CDN cannot swap t
 code, and a **Content-Security-Policy** names `cdn.jsdelivr.net` as the only
 permitted script origin and restricts `connect-src` to this origin alone.
 
-The one other request it can make is an optional, cookieless visit counter
+The one other request it makes is a cookieless visit counter
 ([GoatCounter](https://www.goatcounter.com)): an image request to
-`<code>.goatcounter.com`, sent only when `GOATCOUNTER` in `index.html` holds a
-site code. With it empty, the page makes no third-party request beyond the
-library files.
+`willjudge808.goatcounter.com` on each visit, and one per use of the tour,
+Swipe, About and the outbound links, so the dashboard shows which features are
+used. No personal data is sent. Opening the page once with `?nocount` stops a
+browser being counted; emptying `GOATCOUNTER` in `index.html` switches the
+counter off.
 
 Ocean is encoded as elevation 0, never as nodata. rio-rgbify casts NaN
 straight to `uint8`, which decodes to −10000 m; the previous version of this

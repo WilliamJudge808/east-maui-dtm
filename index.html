@@ -386,18 +386,27 @@ body{--tb:38px}
 "use strict";
 
 /* Visit counter. GoatCounter (goatcounter.com) is free for personal sites,
- * sets no cookies and stores no personal data. Put the site code from its
- * dashboard here to switch it on; empty means nothing is ever sent. */
-const GOATCOUNTER = "";
+ * sets no cookies and stores no personal data. Empty means nothing is sent.
+ * Opening the page once with ?nocount stops counting that browser, the same
+ * "skipgc" flag GoatCounter's own script honours. */
+const GOATCOUNTER = "willjudge808";
+
+function counting() {
+  try {
+    if (new URLSearchParams(location.search).has("nocount")) localStorage.setItem("skipgc", "t");
+    return localStorage.getItem("skipgc") !== "t";
+  } catch { return true; }              // storage blocked: count as normal
+}
+const COUNT = Boolean(GOATCOUNTER) && counting();
 
 function count(path, event) {
-  if (!GOATCOUNTER) return;
+  if (!COUNT) return;
   const q = new URLSearchParams({ p: path, rnd: Math.random().toString(36).slice(2) });
   if (event) q.set("e", "true");
   else {
     q.set("t", document.title);
     if (document.referrer) q.set("r", document.referrer);
-    q.set("s", String(screen.width));
+    q.set("s", `${screen.width},${screen.height},${devicePixelRatio}`);
   }
   new Image().src = `https://${GOATCOUNTER}.goatcounter.com/count?${q}`;
 }
