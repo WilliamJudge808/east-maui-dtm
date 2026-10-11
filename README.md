@@ -1,4 +1,4 @@
-# Maui at One Metre
+# Maui at One Meter
 
 A 1 m bare-earth terrain model of Maui, published as an interactive 3-D map:
 **https://williamjudge808.github.io/east-maui-dtm/**
@@ -43,10 +43,12 @@ East Maui, v3 is checked against ICESat-2 under a rule written down before the c
 
 | Control | |
 |---|---|
-| **Surface** | Flip between the 1 m surface and the Copernicus 30 m prior it was built from. `Space` toggles. |
+| **Go to** | A short tour: East Maui, two places beyond the survey, and a stretch of the survey edge. A first visit with no shared link drifts to East Maui on its own. |
+| **Surface** | The 1 m surface, the Copernicus 30 m prior it was built from, or **Swipe**: both at once, split by a draggable divider. `Space` flips between the first two. |
 | **View** | Shaded relief, hypsometric elevation tint, or contours. |
-| **Relief** | Vertical exaggeration, 1–3×. |
-| **3-D terrain** | Right-drag to tilt. The readout gives elevation under the cursor. |
+| **Height** | Vertical exaggeration, 1–3×, in 3-D. |
+| **3-D terrain** | Right-drag to tilt. The readout gives elevation under the cursor (or under a tap on a phone), in 2-D as well. |
+| **About** | What the map is, two accuracy numbers, and links to the code and the full results. |
 
 The prior toggle is the honest comparison: it is the *raw* GLO-30, with no
 datum shift applied, because that is exactly the surface the model was fed.
@@ -156,17 +158,22 @@ The source is declared `tileSize: 256` although the tiles really are 512 px.
 That only changes which zoom MapLibre reaches for at a given camera — one
 level deeper, so the hillshade is computed from twice as fine a DEM. Measured:
 **1.53× the high-frequency detail** for 2.1× the bytes, elevations unchanged.
-The opening view costs about 3.8 MB over 51 range requests. Only one of the
-two archives is ever rendered, so the surface/prior toggle does not double
-tile traffic.
+The opening view costs about 3.8 MB over 51 range requests. Outside Swipe
+mode only one of the two archives is rendered, so the surface/prior toggle does
+not double tile traffic; Swipe adds the 10 MB prior archive.
 
 ## Page security
 
-The page is static, sets no cookies, stores nothing, and has no analytics —
-it makes no third-party request except for its four library files. Those are
-pinned by **Subresource Integrity** hash, so a compromised CDN cannot swap the
+The page is static, sets no cookies and stores nothing. Its four library files
+are pinned by **Subresource Integrity** hash, so a compromised CDN cannot swap the
 code, and a **Content-Security-Policy** names `cdn.jsdelivr.net` as the only
 permitted script origin and restricts `connect-src` to this origin alone.
+
+The one other request it can make is an optional, cookieless visit counter
+([GoatCounter](https://www.goatcounter.com)): an image request to
+`<code>.goatcounter.com`, sent only when `GOATCOUNTER` in `index.html` holds a
+site code. With it empty, the page makes no third-party request beyond the
+library files.
 
 Ocean is encoded as elevation 0, never as nodata. rio-rgbify casts NaN
 straight to `uint8`, which decodes to −10000 m; the previous version of this

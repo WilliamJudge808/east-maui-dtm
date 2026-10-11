@@ -3,22 +3,35 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Maui at One Metre</title>
-<meta name="description" content="Maui's terrain at 1 m: airborne lidar where it was surveyed, a neural reconstruction where it never was. Compare either against the 30 m global DEM both start from.">
+<title>Maui at One Meter</title>
+<meta name="description" content="East Maui's rainforest was never surveyed by lidar. This 1 m terrain map reconstructs it with a neural network that reads aerial imagery over a 30 m satellite elevation model.">
 <meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0d1d23">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
 
-<!-- This page is static, stores nothing, and asks for nothing. The only code
-     it does not serve itself is these four files, so they are pinned by
-     content hash: if the CDN ever served different bytes, the browser
-     refuses to run them rather than executing whatever arrived. The CSP
-     above is the second half of that -- it names the only origin allowed to
-     supply script at all, and forbids this page from connecting anywhere
-     except back to itself. -->
+<!-- Link previews (LinkedIn, Slack, iMessage). The image URL must be absolute. -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Maui at One Meter">
+<meta property="og:title" content="Maui at One Meter">
+<meta property="og:description" content="East Maui has no lidar survey. A neural network rebuilt its rainforest terrain at 1 m from aerial imagery and a 30 m satellite DEM. Explore it in 3-D.">
+<meta property="og:url" content="https://williamjudge808.github.io/east-maui-dtm/">
+<meta property="og:image" content="https://williamjudge808.github.io/east-maui-dtm/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="The same East Maui gorge in the 30 m satellite DEM and in the 1 m model">
+<meta name="twitter:card" content="summary_large_image">
+
+<!-- The four CDN files below are pinned by content hash: if the CDN ever
+     served different bytes, the browser refuses to run them. This policy is
+     the other half: it names the only origin allowed to supply script, and
+     lets the page fetch only from itself. The one exception is the optional
+     visit counter (GoatCounter, cookieless), an image request that is only
+     made when GOATCOUNTER is set in the script below. -->
 <meta http-equiv="Content-Security-Policy" content="
   default-src 'none';
   script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net blob:;
   style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net;
-  img-src 'self' data: blob:;
+  img-src 'self' data: blob: https://*.goatcounter.com;
   font-src 'self';
   connect-src 'self';
   worker-src blob:;
@@ -58,8 +71,13 @@
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;background:var(--sea);color:var(--ink);
   font:13px/1.45 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-  -webkit-font-smoothing:antialiased}
-#map{position:absolute;inset:0}
+  -webkit-font-smoothing:antialiased;overflow:hidden}
+#map,#map2{position:absolute;inset:0}
+#map2{z-index:1;pointer-events:none}
+#map2[hidden]{display:none}
+a{color:var(--ink)}
+button{font:inherit;color:inherit}
+:focus-visible{outline:1px solid var(--ink);outline-offset:1px}
 
 /* MapLibre's own controls ship rounded and white; square and darken them so
    they belong to the same instrument as everything else. */
@@ -71,20 +89,30 @@ html,body{margin:0;height:100%;background:var(--sea);color:var(--ink);
 .maplibregl-ctrl-group button .maplibregl-ctrl-icon{filter:invert(.82)}
 .maplibregl-ctrl-scale{background:var(--panel);border:1px solid var(--edge);
   border-top:0;color:var(--dim);font:11px/1.6 var(--mono)}
-.maplibregl-ctrl-attrib{background:var(--panel);color:var(--dim);font-size:10.5px}
+.maplibregl-ctrl-attrib{background:var(--panel)!important;color:var(--dim);
+  font-size:10.5px}
 .maplibregl-ctrl-attrib a{color:var(--dim)}
+/* The compact "i" is a black glyph on a white square. Inverting the pair
+   and dimming it gives a grey glyph on (very nearly) the panel colour. */
+.maplibregl-ctrl-attrib.maplibregl-compact{border:1px solid var(--edge)}
+.maplibregl-ctrl-attrib-button{background-color:#ebe7e4!important;
+  filter:invert(1) brightness(.6)}
+.maplibregl-ctrl-attrib-button:hover{filter:invert(1) brightness(.9)}
 
 /* ---- panel ---- */
 #hud{position:absolute;top:12px;left:12px;z-index:3;width:262px;
   background:var(--panel);border:1px solid var(--edge)}
-#head{display:flex;align-items:baseline;gap:10px;padding:11px 12px 10px;
+#head{display:flex;align-items:center;gap:8px;padding:9px 10px 9px 12px;
   cursor:pointer;user-select:none}
 #head h1{font-size:15px;margin:0;letter-spacing:-.01em;font-weight:600}
-#head .chev{margin-left:auto;color:var(--faint);font-size:10px;flex:none;
-  background:none;border:0;cursor:pointer;padding:0;font-family:inherit}
-#head .chev:hover{color:var(--ink)}
-#hud.shut .chev{transform:rotate(-90deg)}
-#hud.shut #body{display:none}
+#about-open{margin-left:auto;background:none;border:1px solid var(--edge);
+  color:var(--dim);font-size:11px;padding:2px 8px;cursor:pointer}
+#about-open:hover{color:var(--ink);border-color:var(--faint)}
+#chev{color:var(--faint);font-size:10px;flex:none;background:none;border:0;
+  cursor:pointer;padding:2px}
+#chev:hover{color:var(--ink)}
+#hud.shut #chev{transform:rotate(-90deg)}
+#hud.shut #body,#hud.shut #foot{display:none}
 #body{padding:0 12px 11px}
 #body>p{margin:0 0 12px;color:var(--dim);font-size:12px;line-height:1.5}
 
@@ -92,10 +120,10 @@ html,body{margin:0;height:100%;background:var(--sea);color:var(--ink);
 .lab{font-size:11px;color:var(--faint);margin-bottom:4px;display:flex;gap:6px;
   align-items:baseline}
 .lab .hint{margin-left:auto;font-size:10.5px}
+@media(hover:none){.lab .hint{display:none}}
 .seg{display:flex;border:1px solid var(--edge)}
 .seg button{flex:1;appearance:none;background:none;border:0;color:var(--dim);
-  font:inherit;font-size:11.5px;padding:5px 3px;cursor:pointer;
-  white-space:nowrap}
+  font-size:11.5px;padding:5px 3px;cursor:pointer;white-space:nowrap}
 .seg button+button{border-left:1px solid var(--edge)}
 .seg button:hover{color:var(--ink)}
 .seg button[aria-pressed=true]{background:var(--ink);color:var(--panel);
@@ -105,6 +133,7 @@ html,body{margin:0;height:100%;background:var(--sea);color:var(--ink);
   margin-top:7px}
 .row input[type=range]{flex:1;accent-color:var(--dim);height:2px}
 .row .val{width:32px;text-align:right;color:var(--ink);font:11px var(--mono)}
+.row.off{opacity:.4}
 label.chk{display:flex;align-items:center;gap:7px;font-size:12px;
   color:var(--dim);cursor:pointer;margin-top:7px}
 label.chk input{accent-color:var(--dim);margin:0}
@@ -117,7 +146,7 @@ label.chk input{accent-color:var(--dim);margin:0}
 /* ---- cursor readout ---- */
 #read{position:absolute;top:12px;right:52px;z-index:3;background:var(--panel);
   border:1px solid var(--edge);padding:6px 9px;min-width:112px;text-align:right;
-  opacity:0;pointer-events:none}
+  opacity:0;pointer-events:none;transition:opacity .15s}
 #read.on{opacity:1}
 #read .m{font:17px/1.1 var(--mono);letter-spacing:-.02em}
 #read .m small{font-size:10px;color:var(--faint);margin-left:2px}
@@ -143,44 +172,153 @@ label.chk input{accent-color:var(--dim);margin:0}
 #keys i{width:16px;height:0;flex:none;display:inline-block;
   border-top:1px dashed var(--line)}
 
+/* ---- places ---- */
+/* --tb is the place bar's bottom edge. On wide screens it shares a row with
+   the legend; narrower, it stacks above the legend, which grows taller when
+   the elevation ramp is showing (body.ramp). */
+body{--tb:38px}
+#tour{position:absolute;left:50%;bottom:var(--tb);transform:translateX(-50%);
+  z-index:3;display:flex;align-items:stretch;background:var(--panel);
+  border:1px solid var(--edge)}
+#tour .lab{margin:0;padding:0 10px;align-items:center;border-right:1px solid var(--edge)}
+#tour button{appearance:none;background:none;border:0;color:var(--dim);
+  font-size:12px;padding:7px 12px;cursor:pointer;white-space:nowrap}
+#tour button+button{border-left:1px solid var(--edge)}
+#tour button:hover{color:var(--ink)}
+#tour button[aria-pressed=true]{background:var(--ink);color:var(--panel);font-weight:600}
+
+#cap{position:absolute;left:50%;bottom:calc(var(--tb) + 46px);transform:translateX(-50%);z-index:3;
+  width:min(440px,calc(100% - 24px));background:var(--panel);
+  border:1px solid var(--edge);padding:10px 34px 10px 12px}
+#cap[hidden]{display:none}
+#cap h2{font-size:13px;margin:0 0 3px;font-weight:600}
+#cap p{margin:0;color:var(--dim);font-size:12px;line-height:1.5}
+#cap p.hint{color:var(--faint);margin-top:5px;font-size:11px}
+#cap-x{position:absolute;top:6px;right:6px;background:none;border:0;
+  color:var(--faint);cursor:pointer;font-size:14px;line-height:1;padding:4px}
+#cap-x:hover{color:var(--ink)}
+
+/* ---- swipe divider ---- */
+#split{position:absolute;top:0;bottom:0;left:50%;width:0;z-index:2}
+#split[hidden]{display:none}
+#split::before{content:"";position:absolute;top:0;bottom:0;left:-1px;width:2px;
+  background:var(--ink);box-shadow:0 0 0 1px rgba(5,9,13,.45)}
+#grip{position:absolute;top:50%;left:-17px;width:34px;height:34px;margin-top:-17px;
+  background:var(--panel);border:1px solid var(--ink);color:var(--ink);
+  display:flex;align-items:center;justify-content:center;font:13px var(--mono);
+  cursor:ew-resize;touch-action:none;padding:0}
+/* A wider, invisible hit area along the whole line, so it can be grabbed anywhere. */
+#hit{position:absolute;top:0;bottom:0;left:-14px;width:28px;cursor:ew-resize;
+  touch-action:none}
+.side{position:absolute;top:50%;margin-top:26px;background:var(--panel);
+  border:1px solid var(--edge);color:var(--dim);font-size:11px;padding:2px 7px;
+  white-space:nowrap;pointer-events:none}
+.side.l{right:10px}
+.side.r{left:10px}
+
+/* ---- loading ---- */
+#boot{position:absolute;inset:0;z-index:4;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:10px;pointer-events:none;
+  font:11px var(--mono);color:var(--faint);transition:opacity .5s}
+#boot.done{opacity:0}
+#boot .bar{width:140px;height:2px;background:var(--edge);overflow:hidden}
+#boot .bar i{display:block;width:40%;height:100%;background:var(--dim);
+  animation:slide 1.2s ease-in-out infinite}
+@keyframes slide{from{transform:translateX(-100%)}to{transform:translateX(250%)}}
+@media(prefers-reduced-motion:reduce){#boot .bar i{animation:none;width:100%}}
+
+/* ---- about ---- */
+#about{max-width:480px;width:calc(100% - 32px);max-height:calc(100% - 32px);
+  background:var(--panel);color:var(--ink);border:1px solid var(--edge);
+  padding:20px 22px 18px;overflow:auto}
+#about::backdrop{background:rgba(4,8,11,.62)}
+#about h2{font-size:17px;margin:0 0 10px;font-weight:600;letter-spacing:-.01em}
+#about p{margin:0 0 11px;color:var(--dim);font-size:13px;line-height:1.55}
+#about table{width:100%;border-collapse:collapse;margin:4px 0 6px;font-size:12px}
+#about th{font-weight:400;color:var(--faint);text-align:right;padding:0 0 5px 10px;
+  font-size:11px;white-space:nowrap;vertical-align:bottom}
+#about th:first-child{text-align:left;padding-left:0}
+#about td{border-top:1px solid var(--edge);padding:6px 0 6px 10px;text-align:right;
+  font-family:var(--mono);color:var(--dim);white-space:nowrap}
+#about td:first-child{text-align:left;padding-left:0;font-family:inherit;white-space:normal}
+#about td.ours{color:var(--ink)}
+#about .note{font-size:11.5px;color:var(--faint)}
+#about .links{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 12px}
+#about .links a{border:1px solid var(--edge);padding:5px 10px;text-decoration:none;
+  font-size:12px}
+#about .links a:hover{border-color:var(--dim)}
+#about .links a.main{background:var(--ink);color:var(--panel);border-color:var(--ink);
+  font-weight:600}
+#about .by{font-size:11.5px;color:var(--faint);margin:0}
+#about .by a{color:var(--dim)}
+#about-x{position:absolute;top:10px;right:10px;background:none;border:0;
+  color:var(--faint);font-size:16px;cursor:pointer;padding:4px;line-height:1}
+#about-x:hover{color:var(--ink)}
+
+@media(max-width:1000px){
+  body{--tb:80px} body.ramp{--tb:110px}
+  #tour{left:12px;right:12px;transform:none;overflow-x:auto}
+  #tour button{flex:1 0 auto}
+  #cap{left:12px;right:12px;width:auto;transform:none}
+}
 @media(max-width:640px){
-  #hud,#leg{width:auto;left:8px;right:8px}
-  #hud{top:8px} #leg{bottom:32px} #read{top:auto;bottom:128px;right:8px}
+  body{--tb:74px} body.ramp{--tb:104px}
+  /* The panel spans the top of the screen, so leave the zoom buttons a column. */
+  #hud{top:8px;left:8px;right:52px;width:auto}
+  #leg{left:8px;right:8px;width:auto;bottom:32px}
+  #tour{left:8px;right:8px}
+  #tour .lab{display:none}
+  #tour button{padding:8px 10px}
+  #cap{left:8px;right:8px}
+  #read{top:auto;bottom:calc(var(--tb) + 46px);right:8px}
+  body.capon #read{bottom:auto;top:58px;right:52px}
 }
 </style>
 </head>
 <body>
 <div id="map"></div>
+<div id="map2" hidden aria-hidden="true"></div>
+
+<div id="split" hidden>
+  <div id="hit"></div>
+  <button id="grip" aria-label="Drag to compare the two surfaces">&#8249;&#8250;</button>
+  <span class="side l">30 m DEM</span>
+  <span class="side r">1 m model</span>
+</div>
 
 <div id="hud">
   <div id="head">
-    <h1>Maui at One Metre</h1>
-    <button class="chev" id="chev" aria-expanded="true"
+    <h1>Maui at One Meter</h1>
+    <button id="about-open" type="button">About</button>
+    <button id="chev" type="button" aria-expanded="true"
             aria-label="Collapse panel">&#9660;</button>
   </div>
   <div id="body">
-    <p>East Maui has no lidar. That third is reconstructed from aerial
-       imagery over a 30&nbsp;m global DEM.</p>
+    <p>Airborne lidar never mapped East Maui. A neural network reconstructed
+       that third of the island from aerial imagery and a 30&nbsp;m satellite
+       elevation model.</p>
 
     <div class="grp">
       <div class="lab">surface <span class="hint">space to flip</span></div>
       <div class="seg" id="src">
-        <button data-v="surface" aria-pressed="true">1 m</button>
-        <button data-v="prior" aria-pressed="false">Copernicus 30 m</button>
+        <button type="button" data-v="surface" aria-pressed="true">1 m model</button>
+        <button type="button" data-v="prior" aria-pressed="false">30 m DEM</button>
+        <button type="button" data-v="split" aria-pressed="false">Swipe</button>
       </div>
     </div>
 
     <div class="grp">
       <div class="lab">view</div>
       <div class="seg" id="view">
-        <button data-v="relief" aria-pressed="true">Relief</button>
-        <button data-v="elev" aria-pressed="false">Elevation</button>
-        <button data-v="contour" aria-pressed="false">Contours</button>
+        <button type="button" data-v="relief" aria-pressed="true">Relief</button>
+        <button type="button" data-v="elev" aria-pressed="false">Elevation</button>
+        <button type="button" data-v="contour" aria-pressed="false">Contours</button>
       </div>
     </div>
 
-    <div class="row"><span>relief</span>
-      <input type="range" id="exag" min="1" max="3" step="0.1" value="1.6">
+    <div class="row" id="exagrow"><span>height</span>
+      <input type="range" id="exag" min="1" max="3" step="0.1" value="1.6"
+             aria-label="Vertical exaggeration">
       <span class="val" id="exagv">1.6&times;</span></div>
     <label class="chk"><input type="checkbox" id="t3d" checked>3-D terrain</label>
     <label class="chk"><input type="checkbox" id="tcov" checked>Survey outline</label>
@@ -188,7 +326,7 @@ label.chk input{accent-color:var(--dim);margin:0}
   <div id="foot">loading&hellip;</div>
 </div>
 
-<div id="read">
+<div id="read" aria-live="polite">
   <div class="m"><span id="rm">&mdash;</span><small>m</small></div>
   <div class="src" id="rs">&nbsp;</div>
 </div>
@@ -198,12 +336,72 @@ label.chk input{accent-color:var(--dim);margin:0}
   <div id="ticks"></div>
   <div id="keys">
     <span><i></i>survey&nbsp;edge</span>
-    <span>outside: <b>modelled</b></span>
+    <span>outside: <b>modeled</b></span>
   </div>
 </div>
 
+<div id="cap" hidden>
+  <h2 id="cap-t"></h2>
+  <p id="cap-p"></p>
+  <p class="hint" id="cap-h" hidden>Drag the line. Left is the 30&nbsp;m satellite DEM, right is the 1&nbsp;m model.</p>
+  <button id="cap-x" type="button" aria-label="Close">&times;</button>
+</div>
+
+<nav id="tour" aria-label="Places">
+  <span class="lab">go to</span>
+</nav>
+
+<div id="boot"><span>loading terrain</span><span class="bar"><i></i></span></div>
+
+<dialog id="about" aria-labelledby="about-t">
+  <button id="about-x" type="button" aria-label="Close">&times;</button>
+  <h2 id="about-t">Maui at One Meter</h2>
+  <p>Airborne lidar maps the ground beneath a forest canopy at about a meter.
+     NOAA and USGS flew it over Maui County from 2020 to 2023, but persistent
+     low cloud kept the aircraft out of windward East Maui. That left about
+     490&nbsp;km² of steep rainforest with nothing finer than 30&nbsp;m
+     satellite elevation data.</p>
+  <p>This map fills the gap. A neural network reads aerial photographs,
+     satellite imagery and the 30&nbsp;m elevation model together, and predicts
+     the shape of the ground under the trees. Where lidar exists, the map shows
+     the lidar, and the dashed line marks where it ends.</p>
+  <table>
+    <thead><tr><th>Median error, checked against</th><th>30 m DEM</th><th>This map</th></tr></thead>
+    <tbody>
+      <tr><td>NASA ICESat-2 laser altimetry over unmapped East Maui</td><td>2.30 m</td><td class="ours">1.26 m</td></tr>
+      <tr><td>Lidar on a rainforest region withheld from training (wet east Molokaʻi)</td><td>6.12 m</td><td class="ours">2.57 m</td></tr>
+    </tbody>
+  </table>
+  <p class="note">The Molokaʻi row uses a separate model trained without that
+     region. This map is a prediction, not a survey: don't use it for
+     engineering, hazards or navigation.</p>
+  <div class="links">
+    <a class="main" href="https://github.com/WilliamJudge808/canopy-to-ground" target="_blank" rel="noopener" data-count="link-code">Code on GitHub &#8599;</a>
+    <a href="https://github.com/WilliamJudge808/canopy-to-ground/blob/main/docs/results.md" target="_blank" rel="noopener" data-count="link-results">Results and method &#8599;</a>
+  </div>
+  <p class="by">By William Judge. Earlier versions: <a href="v1/">September</a>, <a href="v2/">v2</a>.</p>
+</dialog>
+
 <script>
 "use strict";
+
+/* Visit counter. GoatCounter (goatcounter.com) is free for personal sites,
+ * sets no cookies and stores no personal data. Put the site code from its
+ * dashboard here to switch it on; empty means nothing is ever sent. */
+const GOATCOUNTER = "";
+
+function count(path, event) {
+  if (!GOATCOUNTER) return;
+  const q = new URLSearchParams({ p: path, rnd: Math.random().toString(36).slice(2) });
+  if (event) q.set("e", "true");
+  else {
+    q.set("t", document.title);
+    if (document.referrer) q.set("r", document.referrer);
+    q.set("s", String(screen.width));
+  }
+  new Image().src = `https://${GOATCOUNTER}.goatcounter.com/count?${q}`;
+}
+count(location.pathname, false);
 
 /* ------------------------------------------------------------------ data --
  * Both archives are ordinary PMTiles. The ".png" suffix is load-bearing:
@@ -220,7 +418,7 @@ const ARCHIVES = {
     // parent tile, so the lidar simply tops out one level earlier.
     file: "maui_surface_z15.pmtiles.png", maxzoom: 15, mime: "image/webp",
     name: "1 m surface", attrib:
-      "Lidar: NOAA 2022 topobathy &middot; East Maui: modelled, not measured "
+      "Lidar: NOAA 2022 topobathy &middot; East Maui: modeled, not measured "
       + "&middot; coastline: County of Maui 2017, USACE 2013 lidar "
       + "&middot; produced using Copernicus WorldDEM-30 &copy; DLR e.V. "
       + "2010-2014 and &copy; Airbus Defence and Space GmbH 2014-2018 "
@@ -239,10 +437,10 @@ const ARCHIVES = {
       + "all rights reserved",
   },
 };
-// Framing box, not the data box. Kahoolawe is in the archive and shows up in
-// the corner, but including its latitude here pushed fitBounds two zoom levels
-// out and left the island swimming in empty ocean.
+// Framing boxes, not data boxes. Kahoolawe is in the archive but including
+// its latitude pushed the framing two zoom levels out.
 const MAUI = [[-156.70, 20.575], [-155.97, 21.035]];
+const EAST = [[-156.30, 20.60], [-155.97, 20.93]];   // the part with no lidar
 
 /* Sea is written as elevation 0, so it is the ramp's first stop rather than a
  * separate layer. The two views then differ only in this table. */
@@ -255,12 +453,35 @@ const RAMPS = {
 };
 // maplibre-contour picks the largest key <= the tile's zoom, so a missing low
 // entry is not a coarser contour -- it is no contour at all. A tilted view
-// draws its far half from z8-z9 tiles, which is why the top of the screen came
-// up bare until 8 and 9 were added here.
+// draws its far half from z8-z9 tiles, which is why 8 and 9 are listed.
 const CONTOURS = {
   8:[1000,3000], 9:[500,2000], 10:[250,1000], 11:[100,500],
   12:[50,250], 13:[25,100], 14:[10,50], 15:[10,50],
 };
+
+/* Tour stops. Each was checked by eye at this camera. `split` opens the
+ * swipe comparison on arrival. */
+const PLACES = [
+  { id: "east", name: "East Maui", bounds: EAST, pitch: 50, bearing: -18,
+    title: "East Maui",
+    text: "The dashed line is the edge of the 2022 lidar survey. Everything "
+        + "beyond it, about 490 km² of rainforest, is reconstructed by the model." },
+  { id: "hanawi", name: "Hanawī gulches", split: true,
+    cam: { center: [-156.112, 20.818], zoom: 14.6, pitch: 0, bearing: 0 },
+    title: "Hanawī and Kapaula gulches",
+    text: "Stream gorges cut into the rainforest near Nāhiku. No public lidar "
+        + "covers this ground." },
+  { id: "keanae", name: "Keʻanae", split: true,
+    cam: { center: [-156.148, 20.852], zoom: 13.9, pitch: 0, bearing: 0 },
+    title: "Keʻanae",
+    text: "A valley and the lava peninsula at its mouth, on the road to Hāna. "
+        + "Also beyond the survey." },
+  { id: "edge", name: "Survey edge", outline: true,
+    cam: { center: [-156.235, 20.865], zoom: 13.2, pitch: 0, bearing: 0 },
+    title: "Where measurement meets model",
+    text: "West of the dashed line is airborne lidar. East of it is the model. "
+        + "The gulches carry across the join." },
+];
 
 /* ------------------------------------------------------------- pmtiles --- */
 const protocol = new pmtiles.Protocol();
@@ -329,29 +550,31 @@ function demSource(key) {
 }
 
 /* ----------------------------------------------------------------- map --- */
-const state = { src: "surface", view: "relief", exag: 1.6, d3: true, cov: true };
+const $ = (id) => document.getElementById(id);
+const narrow = matchMedia("(max-width: 640px)");
+const touch = matchMedia("(hover: none)");
+const startHash = location.hash.length > 1;
 
-const map = new maplibregl.Map({
-  container: "map",
-  bounds: MAUI,
-  fitBoundsOptions: { padding: 12 },
-  pitch: 44,
-  bearing: -14,
-  maxPitch: 80,
-  minZoom: 8.4,
-  // With tileSize 256 the deepest tiles are already in use at screen z14;
-  // past ~16 there is nothing left to show but interpolation.
-  maxZoom: 16,
-  maxBounds: [[-157.35, 20.05], [-155.35, 21.5]],
-  hash: true,
-  attributionControl: false,       // re-added below, compact
-  // Pages sends max-age=600 on every tile. Without this MapLibre re-requests
-  // each one the moment it expires, mid-pan, for bytes that never change.
-  refreshExpiredTiles: false,
-  style: {
+const state = { src: "surface", view: "relief", exag: 1.6, d3: true, cov: true,
+                split: false, splitX: 0.5 };
+
+/* Terrain stays on in 2-D at a negligible exaggeration, because the elevation
+ * readout is a terrain query: switching terrain off used to silence it. */
+const FLAT = 0.001;
+const exag = () => (state.d3 ? state.exag : FLAT);
+const terrain = (src) => ({ source: src, exaggeration: exag() });
+
+/* Room for the panel and the place bar, so framing does not hide land under them. */
+function framePad() {
+  return narrow.matches ? { top: 64, bottom: 130, left: 16, right: 16 }
+                        : { top: 40, bottom: 110, left: 300, right: 70 };
+}
+
+function styleFor(keys) {
+  return {
     version: 8,
-    sources: Object.fromEntries(Object.entries(ARCHIVES).map(([k, c]) => [k, {
-      type: "raster-dem", url: "pmtiles://" + c.url, encoding: "mapbox",
+    sources: Object.fromEntries(keys.map((k) => [k, {
+      type: "raster-dem", url: "pmtiles://" + ARCHIVES[k].url, encoding: "mapbox",
       // The tiles really are 512 px. Declaring 256 only changes which zoom
       // MapLibre reaches for at a given camera -- one level deeper, so the
       // hillshade is computed from twice as fine a DEM. Measured at the
@@ -359,20 +582,44 @@ const map = new maplibregl.Map({
       // with elevations bit-identical (checked against Haleakala and Puu
       // Kukui). Elevation decoding reads the real image dimensions, so
       // nothing about the terrain geometry depends on this number.
-      tileSize: 256, maxzoom: c.maxzoom, attribution: c.attrib,
+      tileSize: 256, maxzoom: ARCHIVES[k].maxzoom, attribution: ARCHIVES[k].attrib,
     }])),
-    layers: [{ id: "sea", type: "background",
-               // Must equal --sea in the stylesheet; see the note there.
-               paint: { "background-color": "#0d1d23" } }],
-  },
+    // Must equal --sea in the stylesheet; see the note there.
+    layers: [{ id: "sea", type: "background", paint: { "background-color": "#0d1d23" } }],
+  };
+}
+
+const LIMITS = {
+  maxPitch: 80, minZoom: 8.4,
+  // With tileSize 256 the deepest tiles are already in use at screen z14;
+  // past ~16 there is nothing left to show but interpolation.
+  maxZoom: 16,
+  maxBounds: [[-157.35, 20.05], [-155.35, 21.5]],
+  // Pages sends max-age=600 on every tile. Without this MapLibre re-requests
+  // each one the moment it expires, mid-pan, for bytes that never change.
+  refreshExpiredTiles: false,
+};
+
+const map = new maplibregl.Map({
+  container: "map", ...LIMITS,
+  bounds: MAUI, fitBoundsOptions: { padding: framePad() },
+  pitch: 44,
+  hash: true,
+  attributionControl: false,       // re-added below, compact
+  style: styleFor(Object.keys(ARCHIVES)),
 });
+// The constructor's bounds fit always lands at bearing 0; reframe with the tilt.
+if (!startHash) {
+  map.jumpTo({ ...map.cameraForBounds(MAUI, { padding: framePad(), bearing: -14 }), pitch: 44 });
+}
 map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
 map.addControl(new maplibregl.ScaleControl({ maxWidth: 110, unit: "metric" }));
 // Compact: the Copernicus notices are prescribed verbatim and long enough to
-// span the window, which collided with the legend. Collapsed behind the "i"
-// is how web maps normally carry a required notice, and it is also stated in
-// full in the README.
+// span the window. Collapsed behind the "i" is how web maps normally carry a
+// required notice, and it is also stated in full in the README.
 map.addControl(new maplibregl.AttributionControl({ compact: true }));
+
+let ready = false;                       // the main style has loaded
 
 /* Layers are rebuilt rather than retargeted, because a layer's source is
  * fixed at creation. Only the active archive ever has a layer pointing at it,
@@ -380,22 +627,18 @@ map.addControl(new maplibregl.AttributionControl({ compact: true }));
 const MINE = ["tint", "shade", "cmin", "cmaj", "cov-glow", "cov-line"];
 
 function paintRamp(view) {
-  const stops = RAMPS[view === "elev" ? "elev" : "relief"];
-  return ["interpolate", ["linear"], ["elevation"], ...stops];
+  return ["interpolate", ["linear"], ["elevation"], ...RAMPS[view === "elev" ? "elev" : "relief"]];
 }
 
-function rebuild() {
-  for (const id of MINE) if (map.getLayer(id)) map.removeLayer(id);
-  if (map.getSource("contours")) map.removeSource("contours");
+function buildLayers(m, src) {
+  for (const id of MINE) if (m.getLayer(id)) m.removeLayer(id);
+  if (m.getSource("contours")) m.removeSource("contours");
 
-  const src = state.src;
-
-  map.addLayer({
+  m.addLayer({
     id: "tint", type: "color-relief", source: src,
-    paint: { "color-relief-color": paintRamp(state.view),
-             "color-relief-opacity": 1 },
+    paint: { "color-relief-color": paintRamp(state.view), "color-relief-opacity": 1 },
   });
-  map.addLayer({
+  m.addLayer({
     id: "shade", type: "hillshade", source: src,
     paint: {
       // 0.72 with a near-white highlight blew the sunlit faces out to paper.
@@ -407,56 +650,64 @@ function rebuild() {
   });
 
   if (state.view === "contour") {
-    map.addSource("contours", {
+    m.addSource("contours", {
       type: "vector", maxzoom: 15,
       tiles: [demSource(src).contourProtocolUrl({
-        thresholds: CONTOURS, contourLayer: "c", elevationKey: "ele",
-        levelKey: "level",
+        thresholds: CONTOURS, contourLayer: "c", elevationKey: "ele", levelKey: "level",
       })],
     });
-    map.addLayer({
+    m.addLayer({
       id: "cmin", type: "line", source: "contours", "source-layer": "c",
       filter: ["!=", ["get", "level"], 1],
-      paint: { "line-color": "#efe6d4", "line-width": 0.5,
-               "line-opacity": 0.34 },
+      paint: { "line-color": "#efe6d4", "line-width": 0.5, "line-opacity": 0.34 },
     });
-    map.addLayer({
+    m.addLayer({
       id: "cmaj", type: "line", source: "contours", "source-layer": "c",
       filter: ["==", ["get", "level"], 1],
-      paint: { "line-color": "#f6eeda", "line-width": 1.05,
-               "line-opacity": 0.62 },
+      paint: { "line-color": "#f6eeda", "line-width": 1.05, "line-opacity": 0.62 },
     });
   }
 
-  if (map.getSource("coverage")) {
+  if (coverageGeo && !m.getSource("coverage")) {
+    m.addSource("coverage", { type: "geojson", data: coverageGeo });
+  }
+  if (m.getSource("coverage")) {
     // A 1 px half-transparent dash disappeared into the hillshade. A soft
     // wide glow under a crisp dash reads at every zoom without hiding relief.
     const vis = { visibility: state.cov ? "visible" : "none" };
-    map.addLayer({
+    m.addLayer({
       id: "cov-glow", type: "line", source: "coverage", layout: vis,
-      paint: { "line-color": "#5fc0a8", "line-blur": 3,
-               "line-opacity": 0.3,
-               "line-width": ["interpolate", ["linear"], ["zoom"],
-                              9, 5, 13, 10] },
+      paint: { "line-color": "#5fc0a8", "line-blur": 3, "line-opacity": 0.3,
+               "line-width": ["interpolate", ["linear"], ["zoom"], 9, 5, 13, 10] },
     });
-    map.addLayer({
+    m.addLayer({
       id: "cov-line", type: "line", source: "coverage", layout: vis,
-      paint: { "line-color": "#8af0d4", "line-opacity": 0.95,
-               "line-dasharray": [3, 2],
-               "line-width": ["interpolate", ["linear"], ["zoom"],
-                              9, 1.5, 13, 2.4] },
+      paint: { "line-color": "#8af0d4", "line-opacity": 0.95, "line-dasharray": [3, 2],
+               "line-width": ["interpolate", ["linear"], ["zoom"], 9, 1.5, 13, 2.4] },
     });
   }
+  m.setTerrain(terrain(src));
+}
 
-  map.setTerrain(state.d3 ? { source: src, exaggeration: state.exag } : null);
+/* Rebuild every map that is ready. Controls change `state` at any time; the
+ * layers catch up once the style has loaded, so an early click is never lost
+ * (and no longer throws). */
+function apply() {
+  if (ready) buildLayers(map, state.src);
+  if (map2 && map2.isStyleLoaded()) buildLayers(map2, "prior");
   drawLegend();
+  status();
   collapseAttrib();
 }
 
+function applyTerrain() {
+  if (ready) map.setTerrain(terrain(state.src));
+  if (map2 && map2.isStyleLoaded()) map2.setTerrain(terrain("prior"));
+}
+
 /* MapLibre renders the compact attribution pre-expanded, and these notices are
- * long enough to span the window and sit on top of the legend. Collapse it to
- * the "i" -- the notice is still one click away, and in the README. Repeated
- * after every rebuild because switching source rewrites the attribution. */
+ * long enough to span the window. Collapse it to the "i" -- the notice is one
+ * click away. Repeated after every rebuild because switching source rewrites it. */
 function collapseAttrib() {
   for (const el of document.querySelectorAll("details.maplibregl-ctrl-attrib")) {
     el.open = false;
@@ -464,21 +715,101 @@ function collapseAttrib() {
   }
 }
 
+/* ------------------------------------------------------------- swipe --- */
+/* A second map, clipped to the left of the divider, shows the 30 m DEM under
+ * exactly the main map's camera. It never takes input; it only follows. */
+let map2 = null;
+
+function syncCamera() {
+  if (!map2) return;
+  map2.jumpTo({
+    center: map.getCenter(), zoom: map.getZoom(), bearing: map.getBearing(),
+    pitch: map.getPitch(),
+    // Pin the follower to the leader's camera height. Left to itself it would
+    // re-derive it from its own (different) terrain and drift at the divider.
+    elevation: map.getCenterElevation(),
+  });
+}
+
+function ensureMap2() {
+  if (map2) return;
+  map2 = new maplibregl.Map({
+    container: "map2", ...LIMITS, interactive: false, attributionControl: false,
+    style: styleFor(["prior"]),
+    center: map.getCenter(), zoom: map.getZoom(), bearing: map.getBearing(),
+    pitch: map.getPitch(),
+  });
+  map2.setCenterClampedToGround(false);
+  map2.on("load", () => { buildLayers(map2, "prior"); syncCamera(); });
+  map.on("move", syncCamera);
+}
+
+function placeDivider() {
+  const x = Math.round(state.splitX * innerWidth);
+  $("split").style.left = x + "px";
+  $("map2").style.clipPath = `inset(0 ${innerWidth - x}px 0 0)`;
+}
+
+function setSplit(on) {
+  if (state.split === on) return;
+  state.split = on;
+  if (on) {
+    if (state.src !== "surface") { state.src = "surface"; apply(); }
+    ensureMap2();
+    $("map2").hidden = false;
+    map2.resize();
+    syncCamera();
+    placeDivider();
+    count("swipe", true);
+  } else {
+    $("map2").hidden = true;
+  }
+  $("split").hidden = !on;
+  $("cap-h").hidden = !on;
+  syncSrcButtons();
+  status();
+}
+
+function dragDivider(ev) {
+  ev.preventDefault();
+  const el = ev.currentTarget;
+  el.setPointerCapture(ev.pointerId);
+  const move = (e) => {
+    state.splitX = Math.min(0.97, Math.max(0.03, e.clientX / innerWidth));
+    placeDivider();
+  };
+  const up = () => {
+    el.removeEventListener("pointermove", move);
+    el.removeEventListener("pointerup", up);
+    el.removeEventListener("pointercancel", up);
+  };
+  el.addEventListener("pointermove", move);
+  el.addEventListener("pointerup", up);
+  el.addEventListener("pointercancel", up);
+}
+$("grip").addEventListener("pointerdown", dragDivider);
+$("hit").addEventListener("pointerdown", dragDivider);
+$("grip").addEventListener("keydown", (e) => {
+  const step = e.key === "ArrowLeft" ? -0.05 : e.key === "ArrowRight" ? 0.05 : 0;
+  if (!step) return;
+  e.preventDefault();
+  state.splitX = Math.min(0.97, Math.max(0.03, state.splitX + step));
+  placeDivider();
+});
+
 /* ------------------------------------------------------------ coverage --- */
+let coverageGeo = null;
 let coverage = null;                     // rings in lng/lat, for the readout
 fetch("lidar_coverage.geojson")
   .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
   .then((gj) => {
     coverage = [];
     for (const f of gj.features) {
-      const polys = f.geometry.type === "Polygon"
-        ? [f.geometry.coordinates] : f.geometry.coordinates;
+      const polys = f.geometry.type === "Polygon" ? [f.geometry.coordinates] : f.geometry.coordinates;
       for (const p of polys) coverage.push(p);
     }
-    // addSource throws outright if the style has not finished loading, and
-    // this fetch can easily win that race on a warm cache.
-    const attach = () => { map.addSource("coverage", { type: "geojson", data: gj }); rebuild(); };
-    if (map.isStyleLoaded()) attach(); else map.once("load", attach);
+    coverageGeo = gj;
+    apply();
   })
   .catch(() => { /* outline is optional; the map stands without it */ });
 
@@ -503,12 +834,13 @@ function surveyed(lng, lat) {
 }
 
 /* -------------------------------------------------------------- legend --- */
+const foot = $("foot"), ramp = $("ramp"), ticks = $("ticks");
+
 function drawLegend() {
-  // Only the elevation view encodes height as colour, so only it earns a
-  // ramp; in the other views the same bar was a meaningless grey smear.
+  // Only the elevation view encodes height as colour, so only it earns a ramp.
   const show = state.view === "elev";
-  ramp.hidden = ticks.hidden = !show;
   $("leg").classList.toggle("noramp", !show);
+  document.body.classList.toggle("ramp", show);
   if (!show) return;
   const stops = RAMPS.elev;
   const max = stops[stops.length - 2];
@@ -523,98 +855,237 @@ function drawLegend() {
 }
 
 /* ----------------------------------------------------------- interface --- */
-const $ = (id) => document.getElementById(id);
-const foot = $("foot"), ramp = $("ramp"), ticks = $("ticks");
-
-function seg(id, key) {
-  $(id).addEventListener("click", (e) => {
-    const b = e.target.closest("button");
-    if (b && !b.disabled) setSeg(id, key, b.dataset.v);
-  });
-}
-function setSeg(id, key, v) {
-  if (state[key] === v) return;
-  state[key] = v;
-  for (const b of $(id).querySelectorAll("button")) {
+function syncSrcButtons() {
+  const v = state.split ? "split" : state.src;
+  for (const b of $("src").querySelectorAll("button")) {
     b.setAttribute("aria-pressed", String(b.dataset.v === v));
   }
-  rebuild();
-  status();
 }
-seg("src", "src");
-seg("view", "view");
+
+function setSrc(v) {
+  if (v === "split") { setSplit(true); return; }
+  if (state.split) setSplit(false);
+  if (state.src === v) return;
+  state.src = v;
+  syncSrcButtons();
+  apply();
+}
+
+function setView(v) {
+  if (state.view === v) return;
+  state.view = v;
+  for (const b of $("view").querySelectorAll("button")) {
+    b.setAttribute("aria-pressed", String(b.dataset.v === v));
+  }
+  apply();
+}
+
+$("src").addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (b) setSrc(b.dataset.v);
+});
+$("view").addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (b) setView(b.dataset.v);
+});
 
 $("exag").addEventListener("input", (e) => {
   state.exag = +e.target.value;
   $("exagv").textContent = state.exag.toFixed(1) + "×";
-  if (state.d3) map.setTerrain({ source: state.src, exaggeration: state.exag });
+  applyTerrain();
 });
 $("t3d").addEventListener("change", (e) => {
   state.d3 = e.target.checked;
-  map.setTerrain(state.d3 ? { source: state.src, exaggeration: state.exag } : null);
-  if (!state.d3) $("read").classList.remove("on");
+  $("exagrow").classList.toggle("off", !state.d3);
+  $("exag").disabled = !state.d3;
+  applyTerrain();
 });
-$("tcov").addEventListener("change", (e) => {
-  state.cov = e.target.checked;
-  for (const id of ["cov-glow", "cov-line"]) {
-    if (map.getLayer(id)) {
-      map.setLayoutProperty(id, "visibility", state.cov ? "visible" : "none");
+$("tcov").addEventListener("change", (e) => setOutline(e.target.checked));
+
+function setOutline(on) {
+  state.cov = on;
+  $("tcov").checked = on;
+  for (const m of [map, map2]) {
+    if (!m) continue;
+    for (const id of ["cov-glow", "cov-line"]) {
+      if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", on ? "visible" : "none");
+    }
+  }
+}
+
+function setPanel(open) {
+  $("hud").classList.toggle("shut", !open);
+  $("chev").setAttribute("aria-expanded", String(open));
+  $("chev").setAttribute("aria-label", (open ? "Collapse" : "Expand") + " panel");
+}
+$("head").addEventListener("click", (e) => {
+  if (e.target.closest("#about-open")) return;
+  setPanel($("hud").classList.contains("shut"));
+});
+// On a phone the open panel covers a third of the screen; start it closed.
+if (narrow.matches) setPanel(false);
+
+addEventListener("keydown", (e) => {
+  if (e.key !== " " || e.target.matches("input,button,a") || $("about").open) return;
+  e.preventDefault();
+  if (state.split) setSplit(false);
+  else setSrc(state.src === "surface" ? "prior" : "surface");
+});
+
+/* About */
+$("about-open").addEventListener("click", () => { $("about").showModal(); count("about", true); });
+$("about-x").addEventListener("click", () => $("about").close());
+$("about").addEventListener("click", (e) => {        // a click on the backdrop
+  if (e.target === $("about")) {
+    const r = $("about").getBoundingClientRect();
+    if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) {
+      $("about").close();
     }
   }
 });
-$("head").addEventListener("click", () => {
-  const shut = $("hud").classList.toggle("shut");
-  const c = $("chev");
-  c.setAttribute("aria-expanded", String(!shut));
-  c.setAttribute("aria-label", (shut ? "Expand" : "Collapse") + " panel");
-});
-addEventListener("keydown", (e) => {
-  if (e.key !== " " || e.target.matches("input,button")) return;
-  e.preventDefault();
-  setSeg("src", "src", state.src === "surface" ? "prior" : "surface");
-});
+for (const a of document.querySelectorAll("[data-count]")) {
+  a.addEventListener("click", () => count(a.dataset.count, true));
+}
 
-/* Elevation under the cursor. This is what makes the A/B quantitative: park
- * the pointer on a ridge, press space, watch the number move. */
+/* ---------------------------------------------------------------- tour --- */
+let touched = false;                     // the visitor has moved the map themselves
+for (const t of ["mousedown", "touchstart", "wheel"]) {
+  $("map").addEventListener(t, () => { touched = true; }, { passive: true });
+}
+
+function showCaption(p) {
+  $("cap-t").textContent = p.title;
+  $("cap-p").textContent = p.text;
+  $("cap-h").hidden = !state.split;
+  $("cap").hidden = false;
+  document.body.classList.add("capon");
+}
+function hideCaption() {
+  $("cap").hidden = true;
+  document.body.classList.remove("capon");
+  for (const b of $("tour").querySelectorAll("button")) b.setAttribute("aria-pressed", "false");
+}
+$("cap-x").addEventListener("click", hideCaption);
+
+function goTo(p, opts = {}) {
+  for (const b of $("tour").querySelectorAll("button")) {
+    b.setAttribute("aria-pressed", String(b.dataset.id === p.id));
+  }
+  const cam = p.bounds
+    ? { ...map.cameraForBounds(p.bounds, { padding: framePad(), bearing: p.bearing }), pitch: p.pitch }
+    : p.cam;
+  // Open the comparison before the flight, so the 30 m tiles load on the way.
+  setSplit(Boolean(p.split));
+  if (state.split) { state.splitX = 0.5; placeDivider(); }
+  if (p.outline) setOutline(true);
+  map.flyTo({ ...cam, duration: opts.duration || 3200, essential: false });
+  showCaption(p);
+  if (!opts.intro) count("tour/" + p.id, true);
+}
+
+for (const p of PLACES) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.textContent = p.name;
+  b.dataset.id = p.id;
+  b.setAttribute("aria-pressed", "false");
+  b.addEventListener("click", () => goTo(p));
+  $("tour").appendChild(b);
+}
+
+/* --------------------------------------------------- elevation readout --- */
+/* Elevation under the cursor, or under a tap on a touch screen. With the
+ * swipe open, the side of the divider decides which surface is read. */
+function readAt(point, ll) {
+  const left = state.split && map2 && point.x < state.splitX * map.getContainer().clientWidth;
+  const m = left ? map2 : map;
+  const z = m.queryTerrainElevation(ll);
+  if (z == null) { $("read").classList.remove("on"); return; }
+  // queryTerrainElevation returns the *exaggerated* height. Divide it back out.
+  $("rm").textContent = Math.round(z / exag()).toLocaleString();
+  const el = $("rs");
+  if (left || state.src === "prior") {
+    el.className = "src";
+    el.textContent = "30 m DEM";
+  } else {
+    const s = surveyed(ll.lng, ll.lat);
+    el.className = "src " + (s ? "surv" : s === false ? "pred" : "");
+    el.textContent = s === null ? " " : s ? "surveyed" : "modeled";
+  }
+  $("read").classList.add("on");
+}
+
 let pending = null, queued = false;
 map.on("mousemove", (e) => {
-  if (!state.d3) return;
-  pending = e.lngLat;
+  if (touch.matches) return;
+  pending = e;
   if (queued) return;               // one frame's work per frame, not per event
   queued = true;
   requestAnimationFrame(() => {
     queued = false;
-    const ll = pending; pending = null;
-    if (!ll) return;
-    const z = map.queryTerrainElevation(ll);
-    if (z == null) { $("read").classList.remove("on"); return; }
-    // queryTerrainElevation returns the *exaggerated* height, so at 1.6x this
-    // was reporting Haleakala as 4,888 m. Divide it back out.
-    $("rm").textContent = Math.round(z / state.exag).toLocaleString();
-    const s = surveyed(ll.lng, ll.lat);
-    const el = $("rs");
-    el.className = "src " + (state.src === "prior" ? "" : s ? "surv" : "pred");
-    el.textContent = state.src === "prior" ? "global DEM"
-      : s === null ? " " : s ? "surveyed" : "modelled";
-    $("read").classList.add("on");
+    const ev = pending; pending = null;
+    if (ev) readAt(ev.point, ev.lngLat);
   });
 });
 map.on("mouseout", () => $("read").classList.remove("on"));
+let readTimer = 0;
+map.on("click", (e) => {
+  if (!touch.matches) return;
+  readAt(e.point, e.lngLat);
+  clearTimeout(readTimer);
+  readTimer = setTimeout(() => $("read").classList.remove("on"), 4000);
+});
 
 function status() {
+  if (state.split) {
+    foot.innerHTML = "<b>swipe</b>  30 m DEM | 1 m model";
+    return;
+  }
   const c = ARCHIVES[state.src];
   // Ground sampling at the archive's top zoom, so the panel never implies
   // more detail on screen than the tiles actually carry.
-  const mpx = (40075017 * Math.cos(20.8 * Math.PI / 180))
-              / (Math.pow(2, c.maxzoom) * 512);
+  const mpx = (40075017 * Math.cos(20.8 * Math.PI / 180)) / (Math.pow(2, c.maxzoom) * 512);
   foot.innerHTML = `<b>${c.name}</b>  z${c.maxzoom}  ${mpx.toFixed(1)} m/px`;
 }
 
-map.on("load", () => { rebuild(); status(); });
+/* -------------------------------------------------------------- startup --- */
+let booted = false;
+function finishBoot() {
+  if (booted) return;
+  booted = true;
+  const boot = $("boot");
+  boot.classList.add("done");
+  setTimeout(() => boot.remove(), 600);
+  // First visit with no shared view: drift from the whole island to the part
+  // the model drew, and say what the dashed line means. Any input cancels it.
+  if (!startHash) {
+    setTimeout(() => { if (!touched) goTo(PLACES[0], { intro: true, duration: 5200 }); }, 900);
+  }
+}
+
+map.on("load", () => {
+  ready = true;
+  apply();
+  map.once("idle", finishBoot);
+});
+setTimeout(finishBoot, 15000);          // never leave the loader up on a slow link
+
 map.on("error", (e) => {
   const m = (e && e.error && e.error.message) || "unknown";
   foot.innerHTML = `<span class="err">Tile error.</span> ${m}`;
 });
+
+/* A map created in a hidden or resized-while-hidden tab can keep a stale
+ * canvas size; measure again whenever the page becomes visible. */
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible") return;
+  map.resize();
+  if (map2) map2.resize();
+});
+addEventListener("resize", () => { if (state.split) placeDivider(); });
+
+syncSrcButtons();
+drawLegend();
 </script>
 </body>
 </html>
