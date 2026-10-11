@@ -388,7 +388,8 @@ body{--tb:38px}
 /* Visit counter. GoatCounter (goatcounter.com) is free for personal sites,
  * sets no cookies and stores no personal data. Empty means nothing is sent.
  * Opening the page once with ?nocount stops counting that browser, the same
- * "skipgc" flag GoatCounter's own script honours. */
+ * "skipgc" flag GoatCounter's own script honours. A link tagged ?ref=linkedin is
+ * credited to that source even when the app sends no referrer. */
 const GOATCOUNTER = "willjudge808";
 
 function counting() {
@@ -406,6 +407,7 @@ function count(path, event) {
   else {
     q.set("t", document.title);
     if (document.referrer) q.set("r", document.referrer);
+    if (location.search) q.set("q", location.search);   // lets GoatCounter read ?ref= / utm_ tags
     q.set("s", `${screen.width},${screen.height},${devicePixelRatio}`);
   }
   new Image().src = `https://${GOATCOUNTER}.goatcounter.com/count?${q}`;
