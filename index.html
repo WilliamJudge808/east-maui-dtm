@@ -703,7 +703,7 @@ function buildLayers(m, src) {
  * (and no longer throws). */
 function apply() {
   if (ready) buildLayers(map, state.src);
-  if (map2 && map2.isStyleLoaded()) buildLayers(map2, "prior");
+  if (map2Ready) buildLayers(map2, "prior");
   drawLegend();
   status();
   collapseAttrib();
@@ -711,7 +711,7 @@ function apply() {
 
 function applyTerrain() {
   if (ready) map.setTerrain(terrain(state.src));
-  if (map2 && map2.isStyleLoaded()) map2.setTerrain(terrain("prior"));
+  if (map2Ready) map2.setTerrain(terrain("prior"));
 }
 
 /* MapLibre renders the compact attribution pre-expanded, and these notices are
@@ -728,6 +728,10 @@ function collapseAttrib() {
 /* A second map, clipped to the left of the divider, shows the 30 m DEM under
  * exactly the main map's camera. It never takes input; it only follows. */
 let map2 = null;
+// Its style has loaded once. Not map2.isStyleLoaded(): that is also false
+// while tiles are loading, and a view change made then was silently dropped,
+// leaving the two halves of the swipe in different views.
+let map2Ready = false;
 
 function syncCamera() {
   if (!map2) return;
@@ -749,7 +753,7 @@ function ensureMap2() {
     pitch: map.getPitch(),
   });
   map2.setCenterClampedToGround(false);
-  map2.on("load", () => { buildLayers(map2, "prior"); syncCamera(); });
+  map2.on("load", () => { map2Ready = true; buildLayers(map2, "prior"); syncCamera(); });
   map.on("move", syncCamera);
 }
 
